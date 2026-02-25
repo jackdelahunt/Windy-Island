@@ -1,20 +1,21 @@
 import { mat4, vec2, vec3, vec4 } from "gl-matrix";
 
+import textureDataWood from "./assets/textures/wood/wood.png";
+import textureDataStone from "./assets/textures/stone/stone.png"; 
+
 const InputState = {
-  Up: "up",             // currently up
-  Down: "down",         // currently down
-//   Pressed: "pressed",   // just pressed 
-//   Released: "released", // just released
+    Up: "up",             // currently up
+    Down: "down",         // currently down
 } as const;
 
 type InputState = typeof InputState[keyof typeof InputState];
 
 const MouseButton = {
-  Left: 0,
-  Middle: 1,
-  Right: 2,
-  Four: 3,
-  Five: 4,
+    Left: 0,
+    Middle: 1,
+    Right: 2,
+    Four: 3,
+    Five: 4,
 } as const;
 
 type MouseButton = typeof MouseButton[keyof typeof MouseButton];
@@ -56,14 +57,16 @@ type Quad = {
     position: vec3;
     scale: vec2;
     rotation: number;
+    texture: Texture;
     colour: vec4;
 };
 
-const WHITE: vec4 = [1, 1, 1, 1];
-const BLACK: vec4 = [0, 0, 0, 1];
-const RED: vec4 = [1, 0, 0, 1];
-const GREEN: vec4 = [0, 1, 0, 1];
-const BLUE: vec4 = [0, 0, 1, 1];
+const Texture = {
+    Wood: 0,
+    Stone: 1,
+} as const;
+
+type Texture = typeof Texture[keyof typeof Texture];
 
 type Renderer = {
     camera: Camera;
@@ -71,8 +74,15 @@ type Renderer = {
     vertex_array: WebGLBuffer;
     array_buffer: WebGLBuffer;
     index_buffer: WebGLBuffer;
+    textures: WebGLTexture[];
     quads: Quad[];
 };
+
+const WHITE: vec4 = [1, 1, 1, 1];
+const BLACK: vec4 = [0, 0, 0, 1];
+const RED: vec4 = [1, 0, 0, 1];
+const GREEN: vec4 = [0, 1, 0, 1];
+const BLUE: vec4 = [0, 0, 1, 1];
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -197,6 +207,7 @@ function renderer_init() {
         vertex_array: {} as WebGLBuffer,
         array_buffer: {} as WebGLBuffer,
         index_buffer: {} as WebGLBuffer,
+        textures: Array(Object.keys(Texture).length).fill(null),
         quads: [],
     }
 
@@ -208,12 +219,16 @@ function renderer_init() {
     const vertex_shader = `#version 300 es
 
     in vec3 a_position;
+    in vec2 a_uv;
+
+    out vec2 uv;
 
     uniform mat4 u_projection;
     uniform mat4 u_view;
     uniform mat4 u_model;
 
     void main() {
+        uv = a_uv;
         gl_Position = u_projection * u_view * u_model * vec4(a_position, 1);
     }
     `;
@@ -221,18 +236,22 @@ function renderer_init() {
     const fragment_shader = `#version 300 es
     precision mediump float;
 
+    in vec2 uv;
+
     out vec4 frag_colour;
 
+    uniform sampler2D u_texture;
     uniform vec4 u_colour;
 
     void main() {
-        frag_colour = u_colour;
+        frag_colour = texture(u_texture, uv) * u_colour;
     }
     `;
 
     renderer.shader_program = load_shader_program(gl, vertex_shader, fragment_shader)!;
 
     const a_position_location = gl.getAttribLocation(renderer.shader_program, "a_position");
+    const a_uv_location = gl.getAttribLocation(renderer.shader_program, "a_uv");
 
     renderer.vertex_array = gl.createVertexArray();
     gl.bindVertexArray(renderer.vertex_array);
@@ -248,24 +267,59 @@ function renderer_init() {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indicies), gl.STATIC_DRAW);
 
     const verticies = [
-        // position
-        -0.5,  0.5, 0, // top left
-         0.5,  0.5, 0, // top right
-         0.5, -0.5, 0, // bottom right
-        -0.5, -0.5, 0, // bottom left
+        // position       // uv
+        -0.5,  0.5, 0,    0, 1, // top left
+         0.5,  0.5, 0,    1, 1, // top right
+         0.5, -0.5, 0,    1, 0, // bottom right
+        -0.5, -0.5, 0,    0, 0, // bottom left
     ]
 
     renderer.array_buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, renderer.array_buffer);
+
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verticies), gl.STATIC_DRAW);
-    gl.vertexAttribPointer(a_position_location, 3, gl.FLOAT, false, 3 * 4, 0 * 4);
+
+    gl.vertexAttribPointer(a_position_location, 3, gl.FLOAT, false, 5 * 4, 0 * 4);
+    gl.vertexAttribPointer(a_uv_location, 2, gl.FLOAT, false, 5 * 4, 3 * 4);
+
     gl.enableVertexAttribArray(a_position_location);
+    gl.enableVertexAttribArray(a_uv_location);
 
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
+    renderer.textures[Texture.Wood] = texture_load(textureDataWood);
+    renderer.textures[Texture.Stone] = texture_load(textureDataStone);
+
     return renderer;
+}
+
+function texture_load(textureData: string): WebGLTexture {
+    const gl_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, gl_texture);
+
+    const image = new Image();
+    image.src = textureData;
+
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, gl_texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    };
+
+    image.onerror = () => {
+        log_error(`failed to load texture from ${textureData}`);
+    }
+
+    return gl_texture;
 }
 
 function renderer_draw() {
@@ -302,6 +356,11 @@ function renderer_draw() {
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_projection")!, false, projection_matrix);
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_view")!, false, view_matrix);
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_model")!, false, model_matrix);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, renderer.textures[quad.texture]);
+        gl.uniform1i(gl.getUniformLocation(renderer.shader_program, "u_texture")!, 0);
+
         gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, quad.colour);
 
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
@@ -366,7 +425,8 @@ let quad: Quad = {
     position: [0, 0, 0],
     scale: [1, 1],
     rotation: 0,
-    colour: RED,
+    colour: WHITE,
+    texture: Texture.Wood,
 }
 
 let quad2: Quad = {
@@ -374,6 +434,7 @@ let quad2: Quad = {
     scale: [1, 1],
     rotation: 0,
     colour: WHITE,
+    texture: Texture.Stone,
 }
 
 function update_and_draw() {
