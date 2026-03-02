@@ -19,8 +19,8 @@ export function mesh_load_obj(gl: WebGL2RenderingContext, obj_source: string): M
     for (const face of model.faces) {
         for (const vertex of face.vertices) {
             const position = model.vertices[vertex.vertexIndex - 1];
-            const normal = model.vertexNormals[vertex.vertexNormalIndex - 1];
-            const uv = model.textureCoords[vertex.textureCoordsIndex - 1];
+            const normal = model.vertexNormals[vertex.vertexNormalIndex - 1] || { x: 0, y: 0, z: 0 };
+            const uv = model.textureCoords[vertex.textureCoordsIndex - 1] || { u: 0, v: 0 };
 
             vertices.push(position.x, position.y, position.z, normal.x, normal.y, normal.z, uv.u, uv.v);
             indices.push(indices.length);

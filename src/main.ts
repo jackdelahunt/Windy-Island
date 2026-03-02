@@ -7,7 +7,8 @@ import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
 import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
 
-import CUBE_MODEL_SOURCE from "./assets/models/cube.obj?raw";
+import CUBE_MODEL_SOURCE from "./assets/models/cube/cube.obj?raw";
+import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -66,7 +67,11 @@ type MeshInstance = {
 type Renderer = {
     camera: Camera;
     shader_program: WebGLProgram;
-    meshes: Map<string, Mesh>;
+
+    cube_mesh: Mesh;
+    quad_mesh: Mesh;
+    tree_mesh: Mesh;
+
     instances: MeshInstance[];
     sun_direction: vec3;
 };
@@ -95,14 +100,16 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 0, 10),
+            position: vec3.fromValues(0, 2, 10),
             rotation: vec3.fromValues(0, 0, 0),
             fov: 90,
             near_plane: 0.1,
             far_plane: 100,
         },
         shader_program: {} as WebGLProgram,
-        meshes: new Map(),
+        cube_mesh: mesh_load_cube(gl),
+        quad_mesh: mesh_load_quad(gl),
+        tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -120,13 +127,9 @@ function renderer_init() {
     gl.frontFace(gl.CCW);
     gl.enable(gl.CULL_FACE);
 
-    gl.clearColor(0.8, 0.8, 1, 1);
+    gl.clearColor(0.5, 0.7, 1, 1);
 
     renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
-
-    renderer.meshes.set("cube", mesh_load_cube(gl));
-    renderer.meshes.set("quad", mesh_load_quad(gl));
-    renderer.meshes.set("obj", mesh_load_obj(gl, CUBE_MODEL_SOURCE));
 
     return renderer;
 }
@@ -148,7 +151,7 @@ function renderer_draw() {
     const projection_matrix = mat4.create();
     mat4.perspectiveNO(
         projection_matrix, 
-        renderer.camera.fov, 
+        toRadian(renderer.camera.fov), 
         aspect_ratio, 
         renderer.camera.near_plane, 
         renderer.camera.far_plane
@@ -219,37 +222,33 @@ function main() {
     browser_init();
     renderer_init();
 
-    const cube_mesh = renderer.meshes.get("cube")!;
-    const quad_mesh = renderer.meshes.get("quad")!;
-    const obj_mesh = renderer.meshes.get("obj")!;
-
     const cube: MeshInstance = {
-        mesh: cube_mesh,
-        position: vec3.fromValues(0, 0, 0),
+        mesh: renderer.cube_mesh,
+        position: vec3.fromValues(0, 0.5, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
-        colour: WHITE,
+        colour: BLUE,
     };
 
     const ground: MeshInstance = {
-        mesh: quad_mesh,
-        position: vec3.fromValues(0, -1, 0),
+        mesh: renderer.quad_mesh,
+        position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(100, 100, 1),
         colour: BROWN,
     };
 
-    const obj: MeshInstance = {
-        mesh: obj_mesh,
+    const tree: MeshInstance = {
+        mesh: renderer.tree_mesh,
         position: vec3.fromValues(2, 0, 0),
         rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(1, 1, 1),
-        colour: GREEN,
+        scale: vec3.fromValues(3, 3, 3),
+        colour: WHITE,
     };
 
     renderer.instances.push(cube);
     renderer.instances.push(ground);
-    renderer.instances.push(obj);
+    renderer.instances.push(tree);
 
     requestAnimationFrame(frame);
 }
