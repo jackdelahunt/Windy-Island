@@ -1,81 +1,67 @@
-import { mat4, vec2, vec3, vec4 } from "gl-matrix";
+import { mat4, vec2, vec3, vec4, quat } from "gl-matrix";
+import { InputState, Key, keyboard, input_init } from "./input";
+import type { Mesh } from "./mesh";
+import { mesh_load_cube } from "./mesh";
 
-import textureDataWood from "./assets/textures/wood/wood.png";
-import textureDataStone from "./assets/textures/stone/stone.png"; 
+import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
+import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
 
-const InputState = {
-    Up: "up",             // currently up
-    Down: "down",         // currently down
-} as const;
-
-type InputState = typeof InputState[keyof typeof InputState];
-
-const MouseButton = {
-    Left: 0,
-    Middle: 1,
-    Right: 2,
-    Four: 3,
-    Five: 4,
-} as const;
-
-type MouseButton = typeof MouseButton[keyof typeof MouseButton];
-
-type Mouse = {
-    x: number;
-    y: number;
-    buttons: InputState[];
-};
-
-const Key = {
-    Number0:  0, Number1:  1, Number2:  2, Number3:  3, Number4:  4,
-    Number5:  5, Number6:  6, Number7:  7, Number8:  8, Number9:  9,
-
-    A: 10, B: 11, C: 12, D: 13, E: 14,
-    F: 15, G: 16, H: 17, I: 18, J: 19,
-    K: 20, L: 21, M: 22, N: 23, O: 24,
-    P: 25, Q: 26, R: 27, S: 28, T: 29,
-    U: 30, V: 31, W: 32, X: 33, Y: 34, 
-    Z: 35,
-
-    Control: 36, Shift: 37, Space: 38, Escape: 39,
-} as const;
-
-type Key = typeof Key[keyof typeof Key];
-
-type Keyboard = {
-    keys: InputState[];
-};
+function hex_to_colour(hex: string): vec4 {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const a = parseInt(hex.slice(7, 9), 16) / 255;
+    return vec4.fromValues(r, g, b, a);
+}
 
 type Camera = {
     position: vec3;
-    orthographic_size: number;
+    rotation: vec3;
+    fov: number;
     near_plane: number;
     far_plane: number;
 };
 
-type Quad = {
+function camera_forward(camera: Camera): vec3 {
+    const pitch = camera.rotation[0];
+    const yaw = camera.rotation[1];
+    return vec3.fromValues(
+        Math.sin(yaw) * Math.cos(pitch),
+        Math.sin(pitch),
+        -Math.cos(yaw) * Math.cos(pitch)
+    );
+}
+
+function camera_right(camera: Camera): vec3 {
+    const yaw = camera.rotation[1];
+    return vec3.fromValues(Math.cos(yaw), 0, Math.sin(yaw));
+}
+
+function camera_up(camera: Camera): vec3 {
+    const forward = camera_forward(camera);
+    const right = camera_right(camera);
+    
+    const up = vec3.create();
+    vec3.cross(up, right, forward);
+    vec3.normalize(up, up);
+    
+    return up;
+}
+
+type MeshInstance = {
+    mesh: Mesh;
     position: vec3;
-    scale: vec2;
-    rotation: number;
-    texture: Texture;
+    rotation: vec3;
+    scale: vec3;
     colour: vec4;
 };
-
-const Texture = {
-    Wood: 0,
-    Stone: 1,
-} as const;
-
-type Texture = typeof Texture[keyof typeof Texture];
 
 type Renderer = {
     camera: Camera;
     shader_program: WebGLProgram;
-    vertex_array: WebGLBuffer;
-    array_buffer: WebGLBuffer;
-    index_buffer: WebGLBuffer;
-    textures: WebGLTexture[];
-    quads: Quad[];
+    meshes: Map<string, Mesh>;
+    instances: MeshInstance[];
+    sun_direction: vec3;
 };
 
 const WHITE: vec4 = [1, 1, 1, 1];
@@ -83,12 +69,11 @@ const BLACK: vec4 = [0, 0, 0, 1];
 const RED: vec4 = [1, 0, 0, 1];
 const GREEN: vec4 = [0, 1, 0, 1];
 const BLUE: vec4 = [0, 0, 1, 1];
+const BROWN = hex_to_colour("#9e6b46ff");
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
 let renderer: Renderer = {} as Renderer;
-let mouse: Mouse = {} as Mouse;
-let keyboard: Keyboard = {} as Keyboard;
 
 function browser_init() {
     canvas = document.getElementById("canvas")! as HTMLCanvasElement;
@@ -97,276 +82,85 @@ function browser_init() {
 
     gl = canvas.getContext("webgl2")! as WebGL2RenderingContext;
 
-    mouse = {
-        x: 0,
-        y: 0,
-        buttons: Array(Object.keys(MouseButton).length).fill(InputState.Up),
-    };
-
-    canvas.addEventListener("mousemove", event_handler_mouse_move);
-    canvas.addEventListener("mousedown", event_handler_mouse_down);
-    canvas.addEventListener("mouseup", event_handler_mouse_up);
-    canvas.addEventListener("contextmenu", e => e.preventDefault()); // disable right click menu
-
-    keyboard = {
-        keys: Array(Object.keys(Key).length).fill(InputState.Up),
-    };
-
-    window.addEventListener("keydown", event_handler_keys);
-    window.addEventListener("keyup", event_handler_keys);
-}
-
-function event_handler_mouse_move(event: MouseEvent) {
-    mouse.x = event.clientX;
-    mouse.y = event.clientY;
-}
-
-function event_handler_mouse_down(event: MouseEvent) {
-    if (event.button < 0 || event.button >= mouse.buttons.length) {
-        log_warn(`mouse button ${event.button} is not recognized`);
-        return;
-    }
-
-    mouse.buttons[event.button] = InputState.Down;
-}
-
-function event_handler_mouse_up(event: MouseEvent) {
-    if (event.button < 0 || event.button >= mouse.buttons.length) {
-        log_warn(`mouse button ${event.button} is not recognized`);
-        return;
-    }
-
-    mouse.buttons[event.button] = InputState.Up;
-}
-
-function event_handler_keys(event: KeyboardEvent) {
-    let state: InputState;
-    switch (event.type) {
-        case "keydown": state = InputState.Down; break;
-        case "keyup": state = InputState.Up; break;
-        default: log_warn(`event type ${event.type} is not recognized`); return;
-    }
-
-    switch (event.key.toLocaleLowerCase()) {
-        case "0": keyboard.keys[Key.Number0] = state; break;
-        case "1": keyboard.keys[Key.Number1] = state; break;
-        case "2": keyboard.keys[Key.Number2] = state; break;
-        case "3": keyboard.keys[Key.Number3] = state; break;
-        case "4": keyboard.keys[Key.Number4] = state; break;
-        case "5": keyboard.keys[Key.Number5] = state; break;
-        case "6": keyboard.keys[Key.Number6] = state; break;
-        case "7": keyboard.keys[Key.Number7] = state; break;
-        case "8": keyboard.keys[Key.Number8] = state; break;
-        case "9": keyboard.keys[Key.Number9] = state; break;
-        
-        case "a": keyboard.keys[Key.A] = state; break;
-        case "b": keyboard.keys[Key.B] = state; break;
-        case "c": keyboard.keys[Key.C] = state; break;
-        case "d": keyboard.keys[Key.D] = state; break;
-        case "e": keyboard.keys[Key.E] = state; break;
-        case "f": keyboard.keys[Key.F] = state; break;
-        case "g": keyboard.keys[Key.G] = state; break;
-        case "h": keyboard.keys[Key.H] = state; break;
-        case "i": keyboard.keys[Key.I] = state; break;
-        case "j": keyboard.keys[Key.J] = state; break;
-        case "k": keyboard.keys[Key.K] = state; break;
-        case "l": keyboard.keys[Key.L] = state; break;
-        case "m": keyboard.keys[Key.M] = state; break;
-        case "n": keyboard.keys[Key.N] = state; break;
-        case "o": keyboard.keys[Key.O] = state; break;
-        case "p": keyboard.keys[Key.P] = state; break;
-        case "q": keyboard.keys[Key.Q] = state; break;
-        case "r": keyboard.keys[Key.R] = state; break;
-        case "s": keyboard.keys[Key.S] = state; break;
-        case "t": keyboard.keys[Key.T] = state; break;
-        case "u": keyboard.keys[Key.U] = state; break;
-        case "v": keyboard.keys[Key.V] = state; break;
-        case "w": keyboard.keys[Key.W] = state; break;
-        case "x": keyboard.keys[Key.X] = state; break;
-        case "y": keyboard.keys[Key.Y] = state; break;
-        case "z": keyboard.keys[Key.Z] = state; break;
-
-        case "control": keyboard.keys[Key.Control]  = state; break;
-        case "shift":   keyboard.keys[Key.Shift]    = state; break;
-        case " ":       keyboard.keys[Key.Space]    = state; break;
-        case "escape":  keyboard.keys[Key.Escape]   = state; break;
-        
-        default: log_warn(`key ${event.key} is not recognized`); break;
-    }
+    input_init(canvas);
 }
 
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 0, 1), // +z is out of the screen
-            orthographic_size: 5,
+            position: vec3.fromValues(0, 0, 10),
+            rotation: vec3.fromValues(0, 0, 0),
+            fov: 90,
             near_plane: 0,
             far_plane: 100,
         },
         shader_program: {} as WebGLProgram,
-        vertex_array: {} as WebGLBuffer,
-        array_buffer: {} as WebGLBuffer,
-        index_buffer: {} as WebGLBuffer,
-        textures: Array(Object.keys(Texture).length).fill(null),
-        quads: [],
+        meshes: new Map(),
+        instances: [],
+        sun_direction: vec3.fromValues(0, -1, 0),
     }
 
-    gl.clearColor(0.3, 0.3, 0.5, 1);
+    vec3.normalize(renderer.sun_direction, renderer.sun_direction);
+
+    gl.clearColor(0.8, 0.8, 1, 1);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
+    gl.frontFace(gl.CCW);
+    gl.enable(gl.CULL_FACE);
 
-    const vertex_shader = `#version 300 es
+    renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
 
-    in vec3 a_position;
-    in vec2 a_uv;
-
-    out vec2 uv;
-
-    uniform mat4 u_projection;
-    uniform mat4 u_view;
-    uniform mat4 u_model;
-
-    void main() {
-        uv = a_uv;
-        gl_Position = u_projection * u_view * u_model * vec4(a_position, 1);
-    }
-    `;
-
-    const fragment_shader = `#version 300 es
-    precision mediump float;
-
-    in vec2 uv;
-
-    out vec4 frag_colour;
-
-    uniform sampler2D u_texture;
-    uniform vec4 u_colour;
-
-    void main() {
-        frag_colour = texture(u_texture, uv) * u_colour;
-    }
-    `;
-
-    renderer.shader_program = load_shader_program(gl, vertex_shader, fragment_shader)!;
-
-    const a_position_location = gl.getAttribLocation(renderer.shader_program, "a_position");
-    const a_uv_location = gl.getAttribLocation(renderer.shader_program, "a_uv");
-
-    renderer.vertex_array = gl.createVertexArray();
-    gl.bindVertexArray(renderer.vertex_array);
-
-    // CCW winding order
-    const indicies = [
-        0, 2, 1,
-        0, 3, 2,
-    ]
-
-    renderer.index_buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, renderer.index_buffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indicies), gl.STATIC_DRAW);
-
-    const verticies = [
-        // position       // uv
-        -0.5,  0.5, 0,    0, 1, // top left
-         0.5,  0.5, 0,    1, 1, // top right
-         0.5, -0.5, 0,    1, 0, // bottom right
-        -0.5, -0.5, 0,    0, 0, // bottom left
-    ]
-
-    renderer.array_buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, renderer.array_buffer);
-
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verticies), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(a_position_location, 3, gl.FLOAT, false, 5 * 4, 0 * 4);
-    gl.vertexAttribPointer(a_uv_location, 2, gl.FLOAT, false, 5 * 4, 3 * 4);
-
-    gl.enableVertexAttribArray(a_position_location);
-    gl.enableVertexAttribArray(a_uv_location);
-
-    gl.bindVertexArray(null);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-
-    renderer.textures[Texture.Wood] = texture_load(textureDataWood);
-    renderer.textures[Texture.Stone] = texture_load(textureDataStone);
+    const cube = mesh_load_cube(gl);
+    renderer.meshes.set("cube", cube);
 
     return renderer;
-}
-
-function texture_load(textureData: string): WebGLTexture {
-    const gl_texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, gl_texture);
-
-    const image = new Image();
-    image.src = textureData;
-
-    image.onload = () => {
-        gl.bindTexture(gl.TEXTURE_2D, gl_texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    };
-
-    image.onerror = () => {
-        log_error(`failed to load texture from ${textureData}`);
-    }
-
-    return gl_texture;
 }
 
 function renderer_draw() {
     const aspect_ratio = canvas.width / canvas.height;
 
+    const forward = camera_forward(renderer.camera);
+    const target = vec3.create();
+    vec3.add(target, renderer.camera.position, forward);
+
     const view_matrix = mat4.create();
     mat4.lookAt(view_matrix, 
         renderer.camera.position, 
-        [renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2] - 1],
-        [0, 1, 0]
+        target,
+        camera_up(renderer.camera)
     );
 
     const projection_matrix = mat4.create();
-    mat4.orthoNO(projection_matrix,
-        -renderer.camera.orthographic_size * aspect_ratio,
-        renderer.camera.orthographic_size * aspect_ratio,
-        -renderer.camera.orthographic_size, 
-        renderer.camera.orthographic_size,
+    mat4.perspectiveNO(
+        projection_matrix, 
+        renderer.camera.fov, 
+        aspect_ratio, 
         renderer.camera.near_plane, 
         renderer.camera.far_plane
     );
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    for (const quad of renderer.quads) {
+    gl.useProgram(renderer.shader_program);
+    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_projection")!, false, projection_matrix);
+    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_view")!, false, view_matrix);
+    gl.uniform3fv(gl.getUniformLocation(renderer.shader_program, "u_sun_direction")!, renderer.sun_direction);
+
+    for (const instance of renderer.instances) {
         const model_matrix = mat4.create();
-        mat4.translate(model_matrix, model_matrix, quad.position);
-        mat4.rotateZ(model_matrix, model_matrix, quad.rotation);
-        mat4.scale(model_matrix, model_matrix, vec3.fromValues(quad.scale[0], quad.scale[1], 1));
+        mat4.translate(model_matrix, model_matrix, instance.position);
+        mat4.rotateX(model_matrix, model_matrix, instance.rotation[0]);
+        mat4.rotateY(model_matrix, model_matrix, instance.rotation[1]);
+        mat4.rotateZ(model_matrix, model_matrix, instance.rotation[2]);
+        mat4.scale(model_matrix, model_matrix, instance.scale);
 
-        gl.bindVertexArray(renderer.vertex_array);
-        gl.useProgram(renderer.shader_program);
-
-        gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_projection")!, false, projection_matrix);
-        gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_view")!, false, view_matrix);
+        gl.bindVertexArray(instance.mesh.vao);
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_model")!, false, model_matrix);
+        gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, instance.colour);
 
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, renderer.textures[quad.texture]);
-        gl.uniform1i(gl.getUniformLocation(renderer.shader_program, "u_texture")!, 0);
-
-        gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, quad.colour);
-
-        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
+        gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
     }
-
-    renderer.quads = [];
 }
 
 function load_shader_program(gl: WebGL2RenderingContext, vertex_shader_source: string, fragment_shader_source: string): WebGLProgram | null {
@@ -411,6 +205,28 @@ function main() {
     browser_init();
     renderer_init();
 
+    const cube_mesh = renderer.meshes.get("cube")!;
+
+    const cube1: MeshInstance = {
+        mesh: cube_mesh,
+        position: vec3.fromValues(0, 0, 0),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
+        colour: WHITE,
+    };
+
+    const ground: MeshInstance = {
+        mesh: cube_mesh,
+        position: vec3.fromValues(0, -1, 0),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(50, 1, 50),
+        colour: BROWN,
+    };
+
+
+    renderer.instances.push(ground);
+    renderer.instances.push(cube1);
+
     requestAnimationFrame(frame);
 }
 
@@ -421,25 +237,9 @@ function frame(time: DOMHighResTimeStamp) {
     requestAnimationFrame(frame);
 }
 
-let quad: Quad = {
-    position: [0, 0, 0],
-    scale: [1, 1],
-    rotation: 0,
-    colour: WHITE,
-    texture: Texture.Wood,
-}
-
-let quad2: Quad = {
-    position: [-1, 2, 0],
-    scale: [1, 1],
-    rotation: 0,
-    colour: WHITE,
-    texture: Texture.Stone,
-}
-
 function update_and_draw() {
     const speed = 0.09;
-    const input = [0, 0];
+    const input = [0, 0, 0];
 
     if (keyboard.keys[Key.A] === InputState.Down) {
         input[0] -= 1;
@@ -449,19 +249,25 @@ function update_and_draw() {
         input[0] += 1;
     }
 
-    if (keyboard.keys[Key.W] === InputState.Down) {
+    if (keyboard.keys[Key.Space] === InputState.Down) {
         input[1] += 1;
     }
 
-    if (keyboard.keys[Key.S] === InputState.Down) {
+    if (keyboard.keys[Key.Shift] === InputState.Down) {
         input[1] -= 1;
     }
 
-    quad.position[0] += input[0] * speed;
-    quad.position[1] += input[1] * speed;
+    if (keyboard.keys[Key.W] === InputState.Down) {
+        input[2] -= 1;
+    }
 
-    renderer.quads.push(quad);
-    renderer.quads.push(quad2);
+    if (keyboard.keys[Key.S] === InputState.Down) {
+        input[2] += 1;
+    }
+
+    renderer.camera.position[0] += input[0] * speed;
+    renderer.camera.position[1] += input[1] * speed;
+    renderer.camera.position[2] += input[2] * speed;
 }
 
 function log_error(message: string) {
