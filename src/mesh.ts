@@ -1,10 +1,37 @@
 import "gl-matrix";
+import OBJFileParser  from "obj-file-parser";
 
 export type Mesh = {
     vao: WebGLVertexArrayObject;
     index_buffer: WebGLBuffer;
     index_count: number;
 };
+
+export function mesh_load_obj(gl: WebGL2RenderingContext, obj_source: string): Mesh {
+    const obj_file = new OBJFileParser(obj_source);
+    const obj = obj_file.parse();
+
+    const model = obj.models[0];
+
+    const vertices: number[] = [];
+    const indices: number[] = [];
+
+    for (const face of model.faces) {
+        for (const vertex of face.vertices) {
+            const position = model.vertices[vertex.vertexIndex - 1];
+            const normal = model.vertexNormals[vertex.vertexNormalIndex - 1];
+            const uv = model.textureCoords[vertex.textureCoordsIndex - 1];
+
+            vertices.push(position.x, position.y, position.z, normal.x, normal.y, normal.z, uv.u, uv.v);
+            indices.push(indices.length);
+        }
+    }
+
+    const vertex_array = new Float32Array(vertices);
+    const index_array = new Uint16Array(indices);
+
+    return mesh_upload_data(gl, vertex_array, index_array);
+}
 
 export function mesh_load_cube(gl: WebGL2RenderingContext): Mesh {
     const vertices = new Float32Array([

@@ -2,10 +2,12 @@ import { mat4, vec2, vec3, vec4, quat } from "gl-matrix";
 
 import { InputState, Key, keyboard, input_init } from "./input";
 import type { Mesh } from "./mesh";
-import { mesh_load_cube, mesh_load_quad } from "./mesh";
+import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 
 import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
 import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
+
+import CUBE_MODEL_SOURCE from "./assets/models/cube.obj?raw";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -124,6 +126,7 @@ function renderer_init() {
 
     renderer.meshes.set("cube", mesh_load_cube(gl));
     renderer.meshes.set("quad", mesh_load_quad(gl));
+    renderer.meshes.set("obj", mesh_load_obj(gl, CUBE_MODEL_SOURCE));
 
     return renderer;
 }
@@ -218,8 +221,9 @@ function main() {
 
     const cube_mesh = renderer.meshes.get("cube")!;
     const quad_mesh = renderer.meshes.get("quad")!;
+    const obj_mesh = renderer.meshes.get("obj")!;
 
-    const cube1: MeshInstance = {
+    const cube: MeshInstance = {
         mesh: cube_mesh,
         position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(0, 0, 0),
@@ -235,8 +239,17 @@ function main() {
         colour: BROWN,
     };
 
-    renderer.instances.push(cube1);
+    const obj: MeshInstance = {
+        mesh: obj_mesh,
+        position: vec3.fromValues(2, 0, 0),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
+        colour: GREEN,
+    };
+
+    renderer.instances.push(cube);
     renderer.instances.push(ground);
+    renderer.instances.push(obj);
 
     requestAnimationFrame(frame);
 }

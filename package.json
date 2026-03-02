@@ -9,11 +9,13 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/obj-file-parser": "^0.5.2",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-singlefile": "^2.3.0"
   },
   "dependencies": {
-    "gl-matrix": "^3.4.4"
+    "gl-matrix": "^3.4.4",
+    "obj-file-parser": "^0.6.2"
   }
 }
