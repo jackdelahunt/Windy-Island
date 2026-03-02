@@ -1,7 +1,8 @@
 import { mat4, vec2, vec3, vec4, quat } from "gl-matrix";
+
 import { InputState, Key, keyboard, input_init } from "./input";
 import type { Mesh } from "./mesh";
-import { mesh_load_cube } from "./mesh";
+import { mesh_load_cube, mesh_load_quad } from "./mesh";
 
 import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
 import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
@@ -12,6 +13,10 @@ function hex_to_colour(hex: string): vec4 {
     const b = parseInt(hex.slice(5, 7), 16) / 255;
     const a = parseInt(hex.slice(7, 9), 16) / 255;
     return vec4.fromValues(r, g, b, a);
+}
+
+function toRadian(degrees: number): number {
+    return degrees * (Math.PI / 180);
 }
 
 type Camera = {
@@ -91,7 +96,7 @@ function renderer_init() {
             position: vec3.fromValues(0, 0, 10),
             rotation: vec3.fromValues(0, 0, 0),
             fov: 90,
-            near_plane: 0,
+            near_plane: 0.1,
             far_plane: 100,
         },
         shader_program: {} as WebGLProgram,
@@ -102,17 +107,23 @@ function renderer_init() {
 
     vec3.normalize(renderer.sun_direction, renderer.sun_direction);
 
-    gl.clearColor(0.8, 0.8, 1, 1);
-    gl.clearDepth(1.0);
+    // webGL blend settings 
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // webGL depth test settings 
     gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
+    gl.depthFunc(gl.LESS);
+
     gl.frontFace(gl.CCW);
     gl.enable(gl.CULL_FACE);
 
+    gl.clearColor(0.8, 0.8, 1, 1);
+
     renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
 
-    const cube = mesh_load_cube(gl);
-    renderer.meshes.set("cube", cube);
+    renderer.meshes.set("cube", mesh_load_cube(gl));
+    renderer.meshes.set("quad", mesh_load_quad(gl));
 
     return renderer;
 }
@@ -150,9 +161,9 @@ function renderer_draw() {
     for (const instance of renderer.instances) {
         const model_matrix = mat4.create();
         mat4.translate(model_matrix, model_matrix, instance.position);
-        mat4.rotateX(model_matrix, model_matrix, instance.rotation[0]);
-        mat4.rotateY(model_matrix, model_matrix, instance.rotation[1]);
-        mat4.rotateZ(model_matrix, model_matrix, instance.rotation[2]);
+        mat4.rotateX(model_matrix, model_matrix, toRadian(instance.rotation[0]));
+        mat4.rotateY(model_matrix, model_matrix, toRadian(instance.rotation[1]));
+        mat4.rotateZ(model_matrix, model_matrix, toRadian(instance.rotation[2]));
         mat4.scale(model_matrix, model_matrix, instance.scale);
 
         gl.bindVertexArray(instance.mesh.vao);
@@ -206,6 +217,7 @@ function main() {
     renderer_init();
 
     const cube_mesh = renderer.meshes.get("cube")!;
+    const quad_mesh = renderer.meshes.get("quad")!;
 
     const cube1: MeshInstance = {
         mesh: cube_mesh,
@@ -216,16 +228,15 @@ function main() {
     };
 
     const ground: MeshInstance = {
-        mesh: cube_mesh,
+        mesh: quad_mesh,
         position: vec3.fromValues(0, -1, 0),
-        rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(50, 1, 50),
+        rotation: vec3.fromValues(-90, 0, 0),
+        scale: vec3.fromValues(100, 100, 1),
         colour: BROWN,
     };
 
-
-    renderer.instances.push(ground);
     renderer.instances.push(cube1);
+    renderer.instances.push(ground);
 
     requestAnimationFrame(frame);
 }

@@ -1,4 +1,4 @@
-import { vec3, vec2 } from "gl-matrix";
+import "gl-matrix";
 
 export type Mesh = {
     vao: WebGLVertexArrayObject;
@@ -7,8 +7,6 @@ export type Mesh = {
 };
 
 export function mesh_load_cube(gl: WebGL2RenderingContext): Mesh {
-    const stride = 8 * 4;
-
     const vertices = new Float32Array([
         // --- FRONT FACE (z = +0.5) ---
         // position(x,y,z)    normal(0,0,1)    uv(u,v)
@@ -53,6 +51,43 @@ export function mesh_load_cube(gl: WebGL2RenderingContext): Mesh {
         -0.5,  0.5, -0.5,  -1, 0, 0,   0, 1,   // back-top
     ]);
 
+    const indices = new Uint16Array([
+        // Front face (vertices 0-3)
+        0,  1,  2,      0,  2,  3,
+        // Back face (vertices 4-7)
+        4,  5,  6,      4,  6,  7,
+        // Top face (vertices 8-11)
+        8,  9,  10,     8,  10, 11,
+        // Bottom face (vertices 12-15)
+        12, 13, 14,     12, 14, 15,
+        // Right face (vertices 16-19)
+        16, 17, 18,     16, 18, 19,
+        // Left face (vertices 20-23)
+        20, 21, 22,     20, 22, 23,
+    ]);
+
+    return mesh_upload_data(gl, vertices, indices);
+}
+
+export function mesh_load_quad(gl: WebGL2RenderingContext): Mesh {
+    const vertices = new Float32Array([
+        // position(x,y,z)    normal(0,0,1)    uv(u,v)
+        -0.5, -0.5,  0.0,   0, 0, 1,   0, 0,   // bottom-left
+         0.5, -0.5,  0.0,   0, 0, 1,   1, 0,   // bottom-right
+         0.5,  0.5,  0.0,   0, 0, 1,   1, 1,   // top-right
+        -0.5,  0.5,  0.0,   0, 0, 1,   0, 1,   // top-left
+    ]);
+
+    const indices = new Uint16Array([
+        0,  1,  2,      0,  2,  3,
+    ]);
+
+    return mesh_upload_data(gl, vertices, indices);
+}
+
+function mesh_upload_data(gl: WebGL2RenderingContext, vertices: Float32Array, indices: Uint16Array): Mesh {
+    const stride = 8 * 4;
+
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
 
@@ -71,21 +106,6 @@ export function mesh_load_cube(gl: WebGL2RenderingContext): Mesh {
     gl.enableVertexAttribArray(a_position_location);
     gl.enableVertexAttribArray(a_normal_location);
     gl.enableVertexAttribArray(a_uv_location);
-
-    const indices = new Uint16Array([
-        // Front face (vertices 0-3)
-        0,  1,  2,      0,  2,  3,
-        // Back face (vertices 4-7)
-        4,  5,  6,      4,  6,  7,
-        // Top face (vertices 8-11)
-        8,  9,  10,     8,  10, 11,
-        // Bottom face (vertices 12-15)
-        12, 13, 14,     12, 14, 15,
-        // Right face (vertices 16-19)
-        16, 17, 18,     16, 18, 19,
-        // Left face (vertices 20-23)
-        20, 21, 22,     20, 22, 23,
-    ]);
 
     const index_buffer = gl.createBuffer()!;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
