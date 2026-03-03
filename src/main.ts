@@ -10,6 +10,7 @@ import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
 
+import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 
 function hex_to_colour(hex: string): vec4 {
@@ -63,6 +64,7 @@ type MeshInstance = {
     position: vec3;
     rotation: vec3;
     scale: vec3;
+    texture: WebGLTexture;
     colour: vec4;
     back_face_culling: boolean;
 };
@@ -76,6 +78,7 @@ type Renderer = {
     tree_mesh: Mesh;
     grass_mesh: Mesh;
 
+    default_texture: WebGLTexture;
     grass_texture: WebGLTexture;
 
     instances: MeshInstance[];
@@ -87,7 +90,8 @@ const BLACK: vec4 = [0, 0, 0, 1];
 const RED: vec4 = [1, 0, 0, 1];
 const GREEN: vec4 = [0, 1, 0, 1];
 const BLUE: vec4 = [0, 0, 1, 1];
-const BROWN = hex_to_colour("#9e6b46ff");
+const GROUND_GREEN = hex_to_colour("#7f9e46ff");
+const GRASS_GREEN = hex_to_colour("#86ad3cff");
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -117,7 +121,8 @@ function renderer_init() {
         quad_mesh: mesh_load_quad(gl),
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
         grass_mesh: mesh_load_obj(gl, GRASS_MODEL_SOURCE),
-        grass_texture: {} as WebGLTexture,
+        default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE),
+        grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -139,18 +144,23 @@ function renderer_init() {
 
     renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
 
-    renderer.grass_texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, renderer.grass_texture);
+
+    return renderer;
+}
+
+function renderer_load_texture(image_source: string): WebGLTexture {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
     const image = new Image();
-    image.src = GRASS_TEXTURE_SOURCE;
+    image.src = image_source;
 
     image.onload = () => {
-        gl.bindTexture(gl.TEXTURE_2D, renderer.grass_texture);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -162,7 +172,7 @@ function renderer_init() {
         log_error("failed to load texture");
     }
 
-    return renderer;
+    return texture;
 }
 
 function renderer_draw() {
@@ -195,6 +205,7 @@ function renderer_draw() {
     gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_view")!, false, view_matrix);
     gl.uniform3fv(gl.getUniformLocation(renderer.shader_program, "u_sun_direction")!, renderer.sun_direction);
 
+
     for (const instance of renderer.instances) {
         const model_matrix = mat4.create();
         mat4.translate(model_matrix, model_matrix, instance.position);
@@ -206,6 +217,9 @@ function renderer_draw() {
         gl.bindVertexArray(instance.mesh.vao);
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_model")!, false, model_matrix);
         gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, instance.colour);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, instance.texture);
 
         if (instance.back_face_culling) {
             gl.enable(gl.CULL_FACE);
@@ -231,6 +245,9 @@ function load_shader_program(gl: WebGL2RenderingContext, vertex_shader_source: s
         log_error(`Unable to load shader program: ${message}`);
         return null;
     }
+
+    gl.useProgram(shader_program);
+    gl.uniform1i(gl.getUniformLocation(shader_program, "u_texture"), 0);
 
     return shader_program;
 }
@@ -259,21 +276,13 @@ function main() {
     browser_init();
     renderer_init();
 
-    const cube: MeshInstance = {
-        mesh: renderer.cube_mesh,
-        position: vec3.fromValues(0, 0.5, 0),
-        rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(1, 1, 1),
-        colour: BLUE,
-        back_face_culling: true,
-    };
-
     const ground: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(100, 100, 1),
-        colour: BROWN,
+        texture: renderer.default_texture,
+        colour: GROUND_GREEN,
         back_face_culling: false,
     };
 
@@ -282,23 +291,32 @@ function main() {
         position: vec3.fromValues(2, 0, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
+        texture: renderer.default_texture,
         colour: WHITE,
         back_face_culling: true,
     };
 
-    const grass: MeshInstance = {
-        mesh: renderer.grass_mesh,
-        position: vec3.fromValues(-3, 2, 0),
-        rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(1, 1, 1),
-        colour: RED,
-        back_face_culling: false,
-    };
+    const grass_width = 70;
+    const grass_spacing = 0.7;
 
-    renderer.instances.push(cube);
+    for (let x = 0; x < grass_width; x++) {
+        for (let z = 0; z < grass_width; z++) {
+            const grass: MeshInstance = {
+                mesh: renderer.grass_mesh,
+                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), 0, z * grass_spacing - (grass_width * grass_spacing / 2)),
+                rotation: vec3.fromValues(0, Math.random() * 360, 0),
+                scale: vec3.fromValues(1, 1, 1),
+                texture: renderer.grass_texture,
+                colour: GRASS_GREEN,
+                back_face_culling: false,
+            };
+
+            renderer.instances.push(grass);
+        }
+    }
+
     renderer.instances.push(ground);
     renderer.instances.push(tree);
-    renderer.instances.push(grass);
 
     requestAnimationFrame(frame);
 }
