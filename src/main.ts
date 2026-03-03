@@ -1,6 +1,6 @@
 import { mat4, vec2, vec3, vec4, quat } from "gl-matrix";
 
-import { InputState, Key, keyboard, input_init } from "./input";
+import { InputState, Key, keyboard, mouse, input_init, input_reset, input_poll } from "./input";
 import type { Mesh } from "./mesh";
 import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 
@@ -20,7 +20,7 @@ function hex_to_colour(hex: string): vec4 {
     return vec4.fromValues(r, g, b, a);
 }
 
-function toRadian(degrees: number): number {
+function to_radian(degrees: number): number {
     return degrees * (Math.PI / 180);
 }
 
@@ -33,8 +33,8 @@ type Camera = {
 };
 
 function camera_forward(camera: Camera): vec3 {
-    const pitch = camera.rotation[0];
-    const yaw = camera.rotation[1];
+    const pitch = to_radian(camera.rotation[0]);
+    const yaw = to_radian(camera.rotation[1]);
     return vec3.fromValues(
         Math.sin(yaw) * Math.cos(pitch),
         Math.sin(pitch),
@@ -43,7 +43,7 @@ function camera_forward(camera: Camera): vec3 {
 }
 
 function camera_right(camera: Camera): vec3 {
-    const yaw = camera.rotation[1];
+    const yaw = to_radian(camera.rotation[1]);
     return vec3.fromValues(Math.cos(yaw), 0, Math.sin(yaw));
 }
 
@@ -182,7 +182,7 @@ function renderer_draw() {
     const projection_matrix = mat4.create();
     mat4.perspectiveNO(
         projection_matrix, 
-        toRadian(renderer.camera.fov), 
+        to_radian(renderer.camera.fov), 
         aspect_ratio, 
         renderer.camera.near_plane, 
         renderer.camera.far_plane
@@ -198,9 +198,9 @@ function renderer_draw() {
     for (const instance of renderer.instances) {
         const model_matrix = mat4.create();
         mat4.translate(model_matrix, model_matrix, instance.position);
-        mat4.rotateX(model_matrix, model_matrix, toRadian(instance.rotation[0]));
-        mat4.rotateY(model_matrix, model_matrix, toRadian(instance.rotation[1]));
-        mat4.rotateZ(model_matrix, model_matrix, toRadian(instance.rotation[2]));
+        mat4.rotateX(model_matrix, model_matrix, to_radian(instance.rotation[0]));
+        mat4.rotateY(model_matrix, model_matrix, to_radian(instance.rotation[1]));
+        mat4.rotateZ(model_matrix, model_matrix, to_radian(instance.rotation[2]));
         mat4.scale(model_matrix, model_matrix, instance.scale);
 
         gl.bindVertexArray(instance.mesh.vao);
@@ -304,15 +304,23 @@ function main() {
 }
 
 function frame(time: DOMHighResTimeStamp) {
+    input_poll();
+
     update_and_draw();
     renderer_draw();
+
+    input_reset();
 
     requestAnimationFrame(frame);
 }
 
 function update_and_draw() {
+    if (!mouse.pointer_locked) {
+        return;
+    }
+
     const speed = 0.09;
-    const input = [0, 0, 0];
+    const input: vec3 = vec3.fromValues(0, 0, 0);
 
     if (keyboard.keys[Key.A] === InputState.Down) {
         input[0] -= 1;
@@ -331,16 +339,24 @@ function update_and_draw() {
     }
 
     if (keyboard.keys[Key.W] === InputState.Down) {
-        input[2] -= 1;
-    }
-
-    if (keyboard.keys[Key.S] === InputState.Down) {
         input[2] += 1;
     }
 
-    renderer.camera.position[0] += input[0] * speed;
+    if (keyboard.keys[Key.S] === InputState.Down) {
+        input[2] -= 1;
+    }
+
+    const forward = camera_forward(renderer.camera);
+    const right = camera_right(renderer.camera);
+
+    renderer.camera.position[0] += (forward[0] * input[2] + right[0] * input[0]) * speed;
     renderer.camera.position[1] += input[1] * speed;
-    renderer.camera.position[2] += input[2] * speed;
+    renderer.camera.position[2] += (forward[2] * input[2] + right[2] * input[0]) * speed;
+
+    const rotation_speed = 0.2;
+    renderer.camera.rotation[1] += mouse.deltaX * rotation_speed;
+    renderer.camera.rotation[0] -= mouse.deltaY * rotation_speed;
+    renderer.camera.rotation[0] = Math.max(-89.99, Math.min(89.99, renderer.camera.rotation[0]));
 }
 
 function log_error(message: string) {

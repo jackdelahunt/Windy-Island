@@ -18,7 +18,10 @@ export type MouseButton = typeof MouseButton[keyof typeof MouseButton];
 export type Mouse = {
     x: number;
     y: number;
+    deltaX: number;
+    deltaY: number;
     buttons: InputState[];
+    pointer_locked: boolean;
 };
 
 export const Key = {
@@ -45,6 +48,8 @@ export let mouse: Mouse = {} as Mouse;
 export let keyboard: Keyboard = {} as Keyboard;
 
 function event_handler_mouse_move(event: MouseEvent) {
+    mouse.deltaX = event.movementX;
+    mouse.deltaY = event.movementY;
     mouse.x = event.clientX;
     mouse.y = event.clientY;
 }
@@ -127,13 +132,17 @@ export function input_init(canvas: HTMLCanvasElement) {
     mouse = {
         x: 0,
         y: 0,
+        deltaX: 0,
+        deltaY: 0,
         buttons: Array(Object.keys(MouseButton).length).fill(InputState.Up),
+        pointer_locked: false,
     };
 
     canvas.addEventListener("mousemove", event_handler_mouse_move);
     canvas.addEventListener("mousedown", event_handler_mouse_down);
     canvas.addEventListener("mouseup", event_handler_mouse_up);
     canvas.addEventListener("contextmenu", e => e.preventDefault());
+    canvas.addEventListener("click", () => canvas.requestPointerLock());
 
     keyboard = {
         keys: Array(Object.keys(Key).length).fill(InputState.Up),
@@ -141,4 +150,13 @@ export function input_init(canvas: HTMLCanvasElement) {
 
     window.addEventListener("keydown", event_handler_keys);
     window.addEventListener("keyup", event_handler_keys);
+}
+
+export function input_poll() {
+    mouse.pointer_locked = document.pointerLockElement != null;
+}
+
+export function input_reset() {
+    mouse.deltaX = 0;
+    mouse.deltaY = 0;
 }
