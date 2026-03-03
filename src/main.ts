@@ -7,8 +7,10 @@ import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
 import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
 
-import CUBE_MODEL_SOURCE from "./assets/models/cube/cube.obj?raw";
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
+import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
+
+import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -62,6 +64,7 @@ type MeshInstance = {
     rotation: vec3;
     scale: vec3;
     colour: vec4;
+    back_face_culling: boolean;
 };
 
 type Renderer = {
@@ -71,6 +74,9 @@ type Renderer = {
     cube_mesh: Mesh;
     quad_mesh: Mesh;
     tree_mesh: Mesh;
+    grass_mesh: Mesh;
+
+    grass_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -100,9 +106,9 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 2, 10),
+            position: vec3.fromValues(0, 1.75, 10),
             rotation: vec3.fromValues(0, 0, 0),
-            fov: 90,
+            fov: 80,
             near_plane: 0.1,
             far_plane: 100,
         },
@@ -110,6 +116,8 @@ function renderer_init() {
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
+        grass_mesh: mesh_load_obj(gl, GRASS_MODEL_SOURCE),
+        grass_texture: {} as WebGLTexture,
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -130,6 +138,29 @@ function renderer_init() {
     gl.clearColor(0.5, 0.7, 1, 1);
 
     renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
+
+    renderer.grass_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, renderer.grass_texture);
+
+    const image = new Image();
+    image.src = GRASS_TEXTURE_SOURCE;
+
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, renderer.grass_texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    };
+
+    image.onerror = () => {
+        log_error("failed to load texture");
+    }
 
     return renderer;
 }
@@ -175,6 +206,12 @@ function renderer_draw() {
         gl.bindVertexArray(instance.mesh.vao);
         gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_model")!, false, model_matrix);
         gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, instance.colour);
+
+        if (instance.back_face_culling) {
+            gl.enable(gl.CULL_FACE);
+        } else {
+            gl.disable(gl.CULL_FACE);
+        }
 
         gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
     }
@@ -228,6 +265,7 @@ function main() {
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
         colour: BLUE,
+        back_face_culling: true,
     };
 
     const ground: MeshInstance = {
@@ -236,6 +274,7 @@ function main() {
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(100, 100, 1),
         colour: BROWN,
+        back_face_culling: false,
     };
 
     const tree: MeshInstance = {
@@ -244,11 +283,22 @@ function main() {
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
         colour: WHITE,
+        back_face_culling: true,
+    };
+
+    const grass: MeshInstance = {
+        mesh: renderer.grass_mesh,
+        position: vec3.fromValues(-3, 2, 0),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
+        colour: RED,
+        back_face_culling: false,
     };
 
     renderer.instances.push(cube);
     renderer.instances.push(ground);
     renderer.instances.push(tree);
+    renderer.instances.push(grass);
 
     requestAnimationFrame(frame);
 }

@@ -143,8 +143,8 @@ function mesh_upload_data(gl: WebGL2RenderingContext, vertices: Float32Array, in
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
     return {
-        vao,
-        index_buffer,
+        vao: vao,
+        index_buffer: index_buffer,
         index_count: indices.length
     };
 }
