@@ -4,8 +4,7 @@ import { InputState, Key, keyboard, mouse, input_init, input_reset, input_poll }
 import type { Mesh } from "./mesh";
 import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 
-import MESH_VERTEX_SHADER_SOURCE from "./assets/shaders/mesh_vertex.glsl?raw";
-import MESH_FRAGMENT_SHADER_SOURCE from "./assets/shaders/mesh_fragment.glsl?raw";
+import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
@@ -142,7 +141,8 @@ function renderer_init() {
 
     gl.clearColor(0.5, 0.7, 1, 1);
 
-    renderer.shader_program = load_shader_program(gl, MESH_VERTEX_SHADER_SOURCE, MESH_FRAGMENT_SHADER_SOURCE)!;
+    const mesh_shaders = parse_shader_file(MESH_SHADER_SOURCE);
+    renderer.shader_program = load_shader_program(gl, mesh_shaders.vertex, mesh_shaders.fragment)!;
 
 
     return renderer;
@@ -229,6 +229,27 @@ function renderer_draw() {
 
         gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
     }
+}
+
+function parse_shader_file(source: string): { vertex: string; fragment: string } {
+    const lines = source.split("\n");
+    let current_section = "";
+    let vertex_source = "";
+    let fragment_source = "";
+
+    for (const line of lines) {
+        if (line.startsWith("@vertex")) {
+            current_section = "vertex";
+        } else if (line.startsWith("@fragment")) {
+            current_section = "fragment";
+        } else if (current_section === "vertex") {
+            vertex_source += line + "\n";
+        } else if (current_section === "fragment") {
+            fragment_source += line + "\n";
+        }
+    }
+
+    return { vertex: vertex_source.trim(), fragment: fragment_source.trim() };
 }
 
 function load_shader_program(gl: WebGL2RenderingContext, vertex_shader_source: string, fragment_shader_source: string): WebGLProgram | null {
