@@ -8,6 +8,7 @@ import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
+import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
@@ -76,6 +77,7 @@ type Renderer = {
     quad_mesh: Mesh;
     tree_mesh: Mesh;
     grass_mesh: Mesh;
+    island_mesh: Mesh;
 
     default_texture: WebGLTexture;
     grass_texture: WebGLTexture;
@@ -109,17 +111,18 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 1.75, 10),
+            position: vec3.fromValues(0, 10, 10),
             rotation: vec3.fromValues(0, 0, 0),
             fov: 80,
             near_plane: 0.1,
-            far_plane: 100,
+            far_plane: 200,
         },
         shader_program: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
         grass_mesh: mesh_load_obj(gl, GRASS_MODEL_SOURCE),
+        island_mesh: mesh_load_obj(gl, ISLAND_MODEL_SOURCE),
         default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE),
         grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE),
         instances: [],
@@ -298,18 +301,18 @@ function main() {
     renderer_init();
 
     const ground: MeshInstance = {
-        mesh: renderer.quad_mesh,
+        mesh: renderer.island_mesh,
         position: vec3.fromValues(0, 0, 0),
-        rotation: vec3.fromValues(-90, 0, 0),
-        scale: vec3.fromValues(100, 100, 1),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
         texture: renderer.default_texture,
         colour: GROUND_GREEN,
-        back_face_culling: false,
+        back_face_culling: true,
     };
 
     const tree: MeshInstance = {
         mesh: renderer.tree_mesh,
-        position: vec3.fromValues(2, 0, 0),
+        position: vec3.fromValues(-5, 8, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
         texture: renderer.default_texture,
@@ -317,6 +320,17 @@ function main() {
         back_face_culling: true,
     };
 
+    const ocean: MeshInstance = {
+        mesh: renderer.quad_mesh,
+        position: vec3.fromValues(0, 1, 0),
+        rotation: vec3.fromValues(-90, 0, 0),
+        scale: vec3.fromValues(300, 300, 1),
+        texture: renderer.default_texture,
+        colour: BLUE,
+        back_face_culling: true,
+    };
+
+if (false) {
     const grass_width = 70;
     const grass_spacing = 0.7;
 
@@ -335,9 +349,11 @@ function main() {
             renderer.instances.push(grass);
         }
     }
+}
 
     renderer.instances.push(ground);
     renderer.instances.push(tree);
+    renderer.instances.push(ocean);
 
     requestAnimationFrame(frame);
 }

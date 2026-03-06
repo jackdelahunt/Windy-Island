@@ -51,7 +51,7 @@ void main() {
         discard;
     }
 
-    light = vec3(1.0);
+    // light = vec3(1.0);
     
     frag_colour = vec4(colour_rgb * light, colour_a);
 }
