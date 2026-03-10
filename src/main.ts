@@ -86,6 +86,7 @@ type Renderer = {
     default_texture: WebGLTexture;
     grass_texture: WebGLTexture;
     noise_texture: WebGLTexture;
+    wind_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -133,6 +134,7 @@ function renderer_init() {
         default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE),
         grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE),
         noise_texture: renderer_generate_noise_texture(),
+        wind_texture: renderer_generate_perlin_noise_texture(),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -199,6 +201,101 @@ function renderer_generate_noise_texture(): WebGLTexture {
         data[i * 4 + 1] = value;
         data[i * 4 + 2] = value;
         data[i * 4 + 3] = 255;
+    }
+
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+
+    return texture;
+}
+
+function fade(t: number): number {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function lerp(a: number, b: number, t: number): number {
+    return a + t * (b - a);
+}
+
+function grad(hash: number, x: number, y: number): number {
+    const h = hash & 3;
+    const u = h < 2 ? x : y;
+    const v = h < 2 ? y : x;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+}
+
+function perlin(x: number, y: number, perm: Uint8Array): number {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+
+    x -= Math.floor(x);
+    y -= Math.floor(y);
+
+    const u = fade(x);
+    const v = fade(y);
+
+    const A = perm[X] + Y;
+    const B = perm[X + 1] + Y;
+
+    return lerp(
+        lerp(grad(perm[A], x, y), grad(perm[B], x - 1, y), u),
+        lerp(grad(perm[A + 1], x, y - 1), grad(perm[B + 1], x - 1, y - 1), u),
+        v
+    );
+}
+
+function renderer_generate_perlin_noise_texture(): WebGLTexture {
+    const width = 256;
+    const height = 256;
+
+    const perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+        p[i] = i;
+    }
+    for (let i = 255; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [p[i], p[j]] = [p[j], p[i]];
+    }
+    for (let i = 0; i < 512; i++) {
+        perm[i] = p[i & 255];
+    }
+
+    const data = new Uint8Array(width * height * 4);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const nx = x / width;
+            const ny = y / height;
+
+            let value = 0;
+            let amplitude = 1;
+            let frequency = 1;
+            let maxValue = 0;
+
+            for (let o = 0; o < 4; o++) {
+                value += perlin(nx * frequency * 4, ny * frequency * 4, perm) * amplitude;
+                maxValue += amplitude;
+                amplitude *= 0.5;
+                frequency *= 2;
+            }
+
+            value = (value / maxValue + 1) * 0.5;
+            const byteValue = Math.floor(value * 255);
+
+            const i = (y * width + x) * 4;
+            data[i + 0] = byteValue;
+            data[i + 1] = byteValue;
+            data[i + 2] = byteValue;
+            data[i + 3] = 255;
+        }
     }
 
     const texture = gl.createTexture()!;
@@ -283,6 +380,12 @@ function renderer_draw() {
             gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, renderer.noise_texture);
             gl.uniform1i(gl.getUniformLocation(instance.shader, "u_noise_texture")!, 1);
+
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, renderer.wind_texture);
+            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_wind_texture")!, 2);
+
+            gl.uniform1f(gl.getUniformLocation(instance.shader, "u_time")!, performance.now() / 1000);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);

@@ -35,9 +35,17 @@ out vec4 frag_colour;
 uniform vec3 u_sun_direction;
 uniform sampler2D u_texture;
 uniform sampler2D u_noise_texture;
+uniform sampler2D u_wind_texture;
 uniform vec4 u_colour;
+uniform float u_time;
 
 const float NOISE_SCALE = 0.02;
+const float WIND_SCALE = 0.01;
+const float WIND_SPEED = 0.07;
+
+const float MIN_NOISE_COLOUR_EFFECT = 0.7;
+const float MIN_WIND_COLOUR_EFFECT = 0.1;
+const float MIN_HEIGHT_COLOUR_EFFECT = 0.3;
 
 // https://easings.net/#easeOutQuad
 float ease_out_quad(float x) {
@@ -52,11 +60,27 @@ void main() {
         discard;
     }
 
+    // effect colour based on random noise for natural variation
     vec2 world_uv = v_world_position.xz * NOISE_SCALE;
     float noise = texture(u_noise_texture, world_uv).r;
-    colour.rgb *= mix(0.5, 1.0, noise);
+    float noise_effect = mix(MIN_NOISE_COLOUR_EFFECT, 1.0, noise);
+    colour.rgb *= noise_effect;
 
-    colour.rgb *= ease_out_quad(max(0.3, v_uv.g));
+    // effect colour based on wind noise
+    vec2 wind_uv = v_world_position.xz * WIND_SCALE;
+    wind_uv += vec2(u_time * WIND_SPEED, u_time * WIND_SPEED);
+
+    float wind = texture(u_wind_texture, wind_uv).r;
+    float wind_effect = mix(MIN_WIND_COLOUR_EFFECT, 1.0, wind);
+    colour.rgb *= wind_effect;
+
+    // effect colour based on distance to the ground for shadow effect
+    float height_effect = ease_out_quad(max(MIN_HEIGHT_COLOUR_EFFECT, v_uv.g));
+    colour.rgb *= height_effect;
+
+    // colour.rgb = vec3(noise_effect, 0, 0);
+    // colour.rgb = vec3(wind_effect, 0, 0);
+    // colour.rgb = vec3(height_effect, 0, 0);
 
     frag_colour = colour;
 }
