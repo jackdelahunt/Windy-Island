@@ -5,6 +5,7 @@ import type { Mesh } from "./mesh";
 import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 
 import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
+import GRASS_SHADER_SOURCE from "./assets/shaders/grass.glsl?raw";
 
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
@@ -64,6 +65,7 @@ type MeshInstance = {
     position: vec3;
     rotation: vec3;
     scale: vec3;
+    shader: WebGLProgram;
     texture: WebGLTexture;
     colour: vec4;
     back_face_culling: boolean;
@@ -71,7 +73,9 @@ type MeshInstance = {
 
 type Renderer = {
     camera: Camera;
-    shader_program: WebGLProgram;
+
+    mesh_shader: WebGLProgram;
+    grass_shader: WebGLProgram;
 
     cube_mesh: Mesh;
     quad_mesh: Mesh;
@@ -91,8 +95,9 @@ const BLACK: vec4 = [0, 0, 0, 1];
 const RED: vec4 = [1, 0, 0, 1];
 const GREEN: vec4 = [0, 1, 0, 1];
 const BLUE: vec4 = [0, 0, 1, 1];
-const GROUND_GREEN = hex_to_colour("#7f9e46ff");
+const GROUND_GREEN = [0.28, 0.35, 0.18, 1];
 const GRASS_GREEN = hex_to_colour("#86ad3cff");
+const TREE_BROWN = hex_to_colour("#605025ff");
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -111,13 +116,14 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 10, 10),
+            position: vec3.fromValues(0, 2, 10),
             rotation: vec3.fromValues(0, 0, 0),
             fov: 80,
             near_plane: 0.1,
             far_plane: 200,
         },
-        shader_program: {} as WebGLProgram,
+        mesh_shader: {} as WebGLProgram,
+        grass_shader: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
@@ -145,8 +151,10 @@ function renderer_init() {
     gl.clearColor(0.5, 0.7, 1, 1);
 
     const mesh_shaders = parse_shader_file(MESH_SHADER_SOURCE);
-    renderer.shader_program = load_shader_program(gl, mesh_shaders.vertex, mesh_shaders.fragment)!;
+    renderer.mesh_shader = load_shader_program(gl, mesh_shaders.vertex, mesh_shaders.fragment)!;
 
+    const grass_shaders = parse_shader_file(GRASS_SHADER_SOURCE);
+    renderer.grass_shader = load_shader_program(gl, grass_shaders.vertex, grass_shaders.fragment)!;
 
     return renderer;
 }
@@ -203,13 +211,13 @@ function renderer_draw() {
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.useProgram(renderer.shader_program);
-    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_projection")!, false, projection_matrix);
-    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_view")!, false, view_matrix);
-    gl.uniform3fv(gl.getUniformLocation(renderer.shader_program, "u_sun_direction")!, renderer.sun_direction);
-
-
     for (const instance of renderer.instances) {
+        if (instance.back_face_culling) {
+            gl.enable(gl.CULL_FACE);
+        } else {
+            gl.disable(gl.CULL_FACE);
+        }
+
         const model_matrix = mat4.create();
         mat4.translate(model_matrix, model_matrix, instance.position);
         mat4.rotateX(model_matrix, model_matrix, to_radian(instance.rotation[0]));
@@ -217,20 +225,35 @@ function renderer_draw() {
         mat4.rotateZ(model_matrix, model_matrix, to_radian(instance.rotation[2]));
         mat4.scale(model_matrix, model_matrix, instance.scale);
 
-        gl.bindVertexArray(instance.mesh.vao);
-        gl.uniformMatrix4fv(gl.getUniformLocation(renderer.shader_program, "u_model")!, false, model_matrix);
-        gl.uniform4fv(gl.getUniformLocation(renderer.shader_program, "u_colour")!, instance.colour);
+        if (instance.shader == renderer.mesh_shader) {
+            gl.useProgram(instance.shader);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
+            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+            gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
 
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, instance.texture);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, instance.texture);
 
-        if (instance.back_face_culling) {
-            gl.enable(gl.CULL_FACE);
-        } else {
-            gl.disable(gl.CULL_FACE);
+            gl.bindVertexArray(instance.mesh.vao);
+            gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
+        
+        if (instance.shader == renderer.grass_shader) {
+            gl.useProgram(instance.shader);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
+            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+            gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
 
-        gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, instance.texture);
+
+            gl.bindVertexArray(instance.mesh.vao);
+            gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
+        }
     }
 }
 
@@ -270,9 +293,6 @@ function load_shader_program(gl: WebGL2RenderingContext, vertex_shader_source: s
         return null;
     }
 
-    gl.useProgram(shader_program);
-    gl.uniform1i(gl.getUniformLocation(shader_program, "u_texture"), 0);
-
     return shader_program;
 }
 
@@ -300,6 +320,7 @@ function main() {
     browser_init();
     renderer_init();
 
+    /*
     const ground: MeshInstance = {
         mesh: renderer.island_mesh,
         position: vec3.fromValues(0, 0, 0),
@@ -309,38 +330,52 @@ function main() {
         colour: GROUND_GREEN,
         back_face_culling: true,
     };
+    */
+
+    const ground: MeshInstance = {
+        mesh: renderer.quad_mesh,
+        position: vec3.fromValues(0, 1, 0),
+        rotation: vec3.fromValues(-90, 0, 0),
+        scale: vec3.fromValues(40, 40, 1),
+        shader: renderer.mesh_shader,
+        texture: renderer.default_texture,
+        colour: GROUND_GREEN,
+        back_face_culling: true,
+    };
 
     const tree: MeshInstance = {
         mesh: renderer.tree_mesh,
-        position: vec3.fromValues(-5, 8, 0),
+        position: vec3.fromValues(-5, 1, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
+        shader: renderer.mesh_shader,
         texture: renderer.default_texture,
-        colour: WHITE,
+        colour: TREE_BROWN,
         back_face_culling: true,
     };
 
     const ocean: MeshInstance = {
         mesh: renderer.quad_mesh,
-        position: vec3.fromValues(0, 1, 0),
+        position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(300, 300, 1),
+        shader: renderer.mesh_shader,
         texture: renderer.default_texture,
         colour: BLUE,
         back_face_culling: true,
     };
 
-if (false) {
-    const grass_width = 70;
-    const grass_spacing = 0.7;
+    const grass_width = 100;
+    const grass_spacing = 0.2;
 
     for (let x = 0; x < grass_width; x++) {
         for (let z = 0; z < grass_width; z++) {
             const grass: MeshInstance = {
                 mesh: renderer.grass_mesh,
-                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), 0, z * grass_spacing - (grass_width * grass_spacing / 2)),
+                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), 1, z * grass_spacing - (grass_width * grass_spacing / 2)),
                 rotation: vec3.fromValues(0, Math.random() * 360, 0),
-                scale: vec3.fromValues(1, 1, 1),
+                scale: vec3.fromValues(0.4, 0.4, 0.4),
+                shader: renderer.grass_shader,
                 texture: renderer.grass_texture,
                 colour: GRASS_GREEN,
                 back_face_culling: false,
@@ -349,7 +384,6 @@ if (false) {
             renderer.instances.push(grass);
         }
     }
-}
 
     renderer.instances.push(ground);
     renderer.instances.push(tree);
