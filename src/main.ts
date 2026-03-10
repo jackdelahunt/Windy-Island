@@ -85,6 +85,7 @@ type Renderer = {
 
     default_texture: WebGLTexture;
     grass_texture: WebGLTexture;
+    noise_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -131,6 +132,7 @@ function renderer_init() {
         island_mesh: mesh_load_obj(gl, ISLAND_MODEL_SOURCE),
         default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE),
         grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE),
+        noise_texture: renderer_generate_noise_texture(),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -182,6 +184,32 @@ function renderer_load_texture(image_source: string): WebGLTexture {
     image.onerror = () => {
         log_error("failed to load texture");
     }
+
+    return texture;
+}
+
+function renderer_generate_noise_texture(): WebGLTexture {
+    const width = 256;
+    const height = 256;
+    const data = new Uint8Array(width * height * 4);
+
+    for (let i = 0; i < width * height; i++) {
+        const value = Math.floor(Math.random() * 256);
+        data[i * 4 + 0] = value;
+        data[i * 4 + 1] = value;
+        data[i * 4 + 2] = value;
+        data[i * 4 + 3] = 255;
+    }
+
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
 
     return texture;
 }
@@ -250,6 +278,11 @@ function renderer_draw() {
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, instance.texture);
+            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_texture")!, 0);
+
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, renderer.noise_texture);
+            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_noise_texture")!, 1);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
