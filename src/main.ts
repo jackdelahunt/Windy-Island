@@ -62,15 +62,35 @@ function camera_up(camera: Camera): vec3 {
     return up;
 }
 
+type MeshShaderInputs = {
+    type: "mesh";
+    sunDirection: vec3;
+    texture: WebGLTexture;
+    colour: vec4;
+};
+
+type IslandShaderInputs = {
+    type: "island";
+    sunDirection: vec3;
+};
+
+type GrassShaderInputs = {
+    type: "grass";
+    texture: WebGLTexture;
+    noiseTexture: WebGLTexture;
+    windTexture: WebGLTexture;
+    colour: vec4;
+};
+
+type ShaderInputs = MeshShaderInputs | IslandShaderInputs | GrassShaderInputs;
+
 type MeshInstance = {
     mesh: Mesh;
     position: vec3;
     rotation: vec3;
     scale: vec3;
-    shader: WebGLProgram;
-    texture: WebGLTexture;
-    colour: vec4;
     back_face_culling: boolean;
+    shader_inputs: ShaderInputs;
 };
 
 type Renderer = {
@@ -262,63 +282,59 @@ function renderer_draw() {
         mat4.rotateZ(model_matrix, model_matrix, to_radian(instance.rotation[2]));
         mat4.scale(model_matrix, model_matrix, instance.scale);
 
-        if (instance.shader == renderer.mesh_shader) {
-            gl.useProgram(instance.shader);
+        const shader_inputs = instance.shader_inputs;
 
-            // vertex uniforms
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
-            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+        if (shader_inputs.type === "mesh") {
+            gl.useProgram(renderer.mesh_shader);
 
-            // fragment uniforms
-            gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.mesh_shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.mesh_shader, "u_view")!, false, view_matrix);
+            gl.uniform3fv(gl.getUniformLocation(renderer.mesh_shader, "u_sun_direction")!, shader_inputs.sunDirection);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.mesh_shader, "u_model")!, false, model_matrix);
+
+            gl.uniform4fv(gl.getUniformLocation(renderer.mesh_shader, "u_colour")!, shader_inputs.colour);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, instance.texture);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.texture);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
 
-        if (instance.shader == renderer.island_shader) {
-            gl.useProgram(instance.shader);
+        if (shader_inputs.type === "island") {
+            gl.useProgram(renderer.island_shader);
 
-            // vertex uniforms
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_view")!, false, view_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_model")!, false, model_matrix);
 
-            // fragment uniforms
-            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
+            gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sunDirection);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
         
-        if (instance.shader == renderer.grass_shader) {
-            gl.useProgram(instance.shader);
+        if (shader_inputs.type === "grass") {
+            gl.useProgram(renderer.grass_shader);
 
-            // vertex uniforms
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
-            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
-            gl.uniform1f(gl.getUniformLocation(instance.shader, "u_time")!, performance.now() / 1000);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_view")!, false, view_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_model")!, false, model_matrix);
+            gl.uniform1f(gl.getUniformLocation(renderer.grass_shader, "u_time")!, performance.now() / 1000);
 
-            // fragment uniforms
-            gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
+            gl.uniform4fv(gl.getUniformLocation(renderer.grass_shader, "u_colour")!, shader_inputs.colour);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, instance.texture);
-            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_texture")!, 0);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_texture")!, 0);
 
             gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, renderer.noise_texture);
-            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_noise_texture")!, 1);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.noiseTexture);
+            gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_noise_texture")!, 1);
 
             gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, renderer.wind_texture);
-            gl.uniform1i(gl.getUniformLocation(instance.shader, "u_wind_texture")!, 2);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.windTexture);
+            gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_wind_texture")!, 2);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -394,10 +410,11 @@ function main() {
         position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
-        shader: renderer.island_shader,
-        texture: renderer.default_texture,
-        colour: GROUND_GREEN,
         back_face_culling: true,
+        shader_inputs: {
+            type: "island",
+            sunDirection: renderer.sun_direction,
+        },
     };
 
     const tree: MeshInstance = {
@@ -405,10 +422,13 @@ function main() {
         position: vec3.fromValues(-5, 8, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
-        shader: renderer.mesh_shader,
-        texture: renderer.default_texture,
-        colour: TREE_BROWN,
         back_face_culling: true,
+        shader_inputs: {
+            type: "mesh",
+            sunDirection: renderer.sun_direction,
+            texture: renderer.default_texture,
+            colour: TREE_BROWN,
+        },
     };
 
     const ocean: MeshInstance = {
@@ -416,10 +436,13 @@ function main() {
         position: vec3.fromValues(0, 0.1, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(300, 300, 1),
-        shader: renderer.mesh_shader,
-        texture: renderer.default_texture,
-        colour: BLUE,
         back_face_culling: true,
+        shader_inputs: {
+            type: "mesh",
+            sunDirection: renderer.sun_direction,
+            texture: renderer.default_texture,
+            colour: BLUE,
+        },
     };
 
 if (false) {
@@ -428,10 +451,13 @@ if (false) {
         position: vec3.fromValues(-2, 2, 8),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
-        shader: renderer.mesh_shader,
-        texture: renderer.wind_texture,
-        colour: WHITE,
         back_face_culling: true,
+        shader_inputs: {
+            type: "mesh",
+            sunDirection: renderer.sun_direction,
+            texture: renderer.wind_texture,
+            colour: WHITE,
+        },
     };
 
     const noise: MeshInstance = {
@@ -439,10 +465,13 @@ if (false) {
         position: vec3.fromValues(-2, 3, 8),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
-        shader: renderer.mesh_shader,
-        texture: renderer.noise_texture,
-        colour: WHITE,
         back_face_culling: true,
+        shader_inputs: {
+            type: "mesh",
+            sunDirection: renderer.sun_direction,
+            texture: renderer.noise_texture,
+            colour: WHITE,
+        },
     };
 
     renderer.instances.push(wind);
@@ -464,10 +493,14 @@ if (false) {
                 position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), grass_y, z * grass_spacing - (grass_width * grass_spacing / 2)),
                 rotation: vec3.fromValues(0, Math.random() * 360, 0),
                 scale: vec3.fromValues(0.4, 0.4, 0.4),
-                shader: renderer.grass_shader,
-                texture: renderer.grass_texture,
-                colour: GRASS_GREEN,
                 back_face_culling: false,
+                shader_inputs: {
+                    type: "grass",
+                    texture: renderer.grass_texture,
+                    noiseTexture: renderer.noise_texture,
+                    windTexture: renderer.wind_texture,
+                    colour: GRASS_GREEN,
+                } as ShaderInputs,
             };
 
             renderer.instances.push(grass);
