@@ -13,6 +13,7 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
+import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -131,10 +132,10 @@ function renderer_init() {
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
         grass_mesh: mesh_load_obj(gl, GRASS_MODEL_SOURCE),
         island_mesh: mesh_load_obj(gl, ISLAND_MODEL_SOURCE),
-        default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE),
-        grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE),
+        default_texture: renderer_load_texture(DEFAULT_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
+        grass_texture: renderer_load_texture(GRASS_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
         noise_texture: renderer_generate_noise_texture(),
-        wind_texture: renderer_generate_perlin_noise_texture(),
+        wind_texture: renderer_load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -163,7 +164,7 @@ function renderer_init() {
     return renderer;
 }
 
-function renderer_load_texture(image_source: string): WebGLTexture {
+function renderer_load_texture(image_source: string, wrap_method: GLint, filter_method: GLint): WebGLTexture {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -174,11 +175,11 @@ function renderer_load_texture(image_source: string): WebGLTexture {
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap_method);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap_method);
 
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_method);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_method);
 
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     };
@@ -201,101 +202,6 @@ function renderer_generate_noise_texture(): WebGLTexture {
         data[i * 4 + 1] = value;
         data[i * 4 + 2] = value;
         data[i * 4 + 3] = 255;
-    }
-
-    const texture = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
-
-    return texture;
-}
-
-function fade(t: number): number {
-    return t * t * t * (t * (t * 6 - 15) + 10);
-}
-
-function lerp(a: number, b: number, t: number): number {
-    return a + t * (b - a);
-}
-
-function grad(hash: number, x: number, y: number): number {
-    const h = hash & 3;
-    const u = h < 2 ? x : y;
-    const v = h < 2 ? y : x;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-}
-
-function perlin(x: number, y: number, perm: Uint8Array): number {
-    const X = Math.floor(x) & 255;
-    const Y = Math.floor(y) & 255;
-
-    x -= Math.floor(x);
-    y -= Math.floor(y);
-
-    const u = fade(x);
-    const v = fade(y);
-
-    const A = perm[X] + Y;
-    const B = perm[X + 1] + Y;
-
-    return lerp(
-        lerp(grad(perm[A], x, y), grad(perm[B], x - 1, y), u),
-        lerp(grad(perm[A + 1], x, y - 1), grad(perm[B + 1], x - 1, y - 1), u),
-        v
-    );
-}
-
-function renderer_generate_perlin_noise_texture(): WebGLTexture {
-    const width = 256;
-    const height = 256;
-
-    const perm = new Uint8Array(512);
-    const p = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) {
-        p[i] = i;
-    }
-    for (let i = 255; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [p[i], p[j]] = [p[j], p[i]];
-    }
-    for (let i = 0; i < 512; i++) {
-        perm[i] = p[i & 255];
-    }
-
-    const data = new Uint8Array(width * height * 4);
-
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const nx = x / width;
-            const ny = y / height;
-
-            let value = 0;
-            let amplitude = 1;
-            let frequency = 1;
-            let maxValue = 0;
-
-            for (let o = 0; o < 4; o++) {
-                value += perlin(nx * frequency * 4, ny * frequency * 4, perm) * amplitude;
-                maxValue += amplitude;
-                amplitude *= 0.5;
-                frequency *= 2;
-            }
-
-            value = (value / maxValue + 1) * 0.5;
-            const byteValue = Math.floor(value * 255);
-
-            const i = (y * width + x) * 4;
-            data[i + 0] = byteValue;
-            data[i + 1] = byteValue;
-            data[i + 2] = byteValue;
-            data[i + 3] = 255;
-        }
     }
 
     const texture = gl.createTexture()!;
@@ -507,6 +413,34 @@ function main() {
         back_face_culling: true,
     };
 
+    const wind: MeshInstance = {
+        mesh: renderer.quad_mesh,
+        position: vec3.fromValues(-2, 2, 8),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
+        shader: renderer.mesh_shader,
+        texture: renderer.wind_texture,
+        colour: WHITE,
+        back_face_culling: true,
+    };
+
+    const noise: MeshInstance = {
+        mesh: renderer.quad_mesh,
+        position: vec3.fromValues(-2, 3, 8),
+        rotation: vec3.fromValues(0, 0, 0),
+        scale: vec3.fromValues(1, 1, 1),
+        shader: renderer.mesh_shader,
+        texture: renderer.noise_texture,
+        colour: WHITE,
+        back_face_culling: true,
+    };
+
+    renderer.instances.push(ground);
+    renderer.instances.push(tree);
+    renderer.instances.push(ocean);
+    renderer.instances.push(wind);
+    renderer.instances.push(noise);
+
     const grass_width = 100;
     const grass_spacing = 0.3;
 
@@ -526,10 +460,6 @@ function main() {
             renderer.instances.push(grass);
         }
     }
-
-    renderer.instances.push(ground);
-    renderer.instances.push(tree);
-    renderer.instances.push(ocean);
 
     requestAnimationFrame(frame);
 }
