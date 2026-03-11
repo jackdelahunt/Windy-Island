@@ -6,6 +6,7 @@ import { mesh_load_cube, mesh_load_quad, mesh_load_obj } from "./mesh";
 
 import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 import GRASS_SHADER_SOURCE from "./assets/shaders/grass.glsl?raw";
+import ISLAND_SHADER_SOURCE from "./assets/shaders/island.glsl?raw";
 
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
@@ -77,6 +78,7 @@ type Renderer = {
 
     mesh_shader: WebGLProgram;
     grass_shader: WebGLProgram;
+    island_shader: WebGLProgram;
 
     cube_mesh: Mesh;
     quad_mesh: Mesh;
@@ -119,7 +121,7 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 2, 10),
+            position: vec3.fromValues(0, 10, 10),
             rotation: vec3.fromValues(0, 0, 0),
             fov: 80,
             near_plane: 0.1,
@@ -127,6 +129,7 @@ function renderer_init() {
         },
         mesh_shader: {} as WebGLProgram,
         grass_shader: {} as WebGLProgram,
+        island_shader: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
         tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
@@ -160,6 +163,9 @@ function renderer_init() {
 
     const grass_shaders = parse_shader_file(GRASS_SHADER_SOURCE);
     renderer.grass_shader = load_shader_program(gl, grass_shaders.vertex, grass_shaders.fragment)!;
+
+    const island_shaders = parse_shader_file(ISLAND_SHADER_SOURCE);
+    renderer.island_shader = load_shader_program(gl, island_shaders.vertex, island_shaders.fragment)!;
 
     return renderer;
 }
@@ -274,6 +280,21 @@ function renderer_draw() {
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
+
+        if (instance.shader == renderer.island_shader) {
+            gl.useProgram(instance.shader);
+
+            // vertex uniforms
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
+            gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+
+            // fragment uniforms
+            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
+
+            gl.bindVertexArray(instance.mesh.vao);
+            gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
+        }
         
         if (instance.shader == renderer.grass_shader) {
             gl.useProgram(instance.shader);
@@ -368,24 +389,12 @@ function main() {
     browser_init();
     renderer_init();
 
-    /*
     const ground: MeshInstance = {
         mesh: renderer.island_mesh,
         position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(1, 1, 1),
-        texture: renderer.default_texture,
-        colour: GROUND_GREEN,
-        back_face_culling: true,
-    };
-    */
-
-    const ground: MeshInstance = {
-        mesh: renderer.quad_mesh,
-        position: vec3.fromValues(0, 1, 0),
-        rotation: vec3.fromValues(-90, 0, 0),
-        scale: vec3.fromValues(40, 40, 1),
-        shader: renderer.mesh_shader,
+        shader: renderer.island_shader,
         texture: renderer.default_texture,
         colour: GROUND_GREEN,
         back_face_culling: true,
@@ -393,7 +402,7 @@ function main() {
 
     const tree: MeshInstance = {
         mesh: renderer.tree_mesh,
-        position: vec3.fromValues(-5, 1, 0),
+        position: vec3.fromValues(-5, 8, 0),
         rotation: vec3.fromValues(0, 0, 0),
         scale: vec3.fromValues(3, 3, 3),
         shader: renderer.mesh_shader,
@@ -404,7 +413,7 @@ function main() {
 
     const ocean: MeshInstance = {
         mesh: renderer.quad_mesh,
-        position: vec3.fromValues(0, 0, 0),
+        position: vec3.fromValues(0, 0.1, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(300, 300, 1),
         shader: renderer.mesh_shader,
@@ -413,6 +422,7 @@ function main() {
         back_face_culling: true,
     };
 
+if (false) {
     const wind: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(-2, 2, 8),
@@ -435,20 +445,23 @@ function main() {
         back_face_culling: true,
     };
 
+    renderer.instances.push(wind);
+    renderer.instances.push(noise);
+}
+
     renderer.instances.push(ground);
     renderer.instances.push(tree);
     renderer.instances.push(ocean);
-    renderer.instances.push(wind);
-    renderer.instances.push(noise);
 
-    const grass_width = 100;
+    const grass_width = 20;
     const grass_spacing = 0.3;
+    const grass_y = 10;
 
     for (let x = 0; x < grass_width; x++) {
         for (let z = 0; z < grass_width; z++) {
             const grass: MeshInstance = {
                 mesh: renderer.grass_mesh,
-                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), 1, z * grass_spacing - (grass_width * grass_spacing / 2)),
+                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), grass_y, z * grass_spacing - (grass_width * grass_spacing / 2)),
                 rotation: vec3.fromValues(0, Math.random() * 360, 0),
                 scale: vec3.fromValues(0.4, 0.4, 0.4),
                 shader: renderer.grass_shader,
