@@ -97,7 +97,7 @@ const BLACK: vec4 = [0, 0, 0, 1];
 const RED: vec4 = [1, 0, 0, 1];
 const GREEN: vec4 = [0, 1, 0, 1];
 const BLUE: vec4 = [0, 0, 1, 1];
-const GROUND_GREEN = [0.28, 0.35, 0.18, 1];
+const GROUND_GREEN = [0.08, 0.3, 0.08, 1]; 
 const GRASS_GREEN = hex_to_colour("#86ad3cff");
 const TREE_BROWN = hex_to_colour("#605025ff");
 
@@ -352,10 +352,14 @@ function renderer_draw() {
 
         if (instance.shader == renderer.mesh_shader) {
             gl.useProgram(instance.shader);
+
+            // vertex uniforms
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
             gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+
+            // fragment uniforms
             gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
 
             gl.activeTexture(gl.TEXTURE0);
@@ -367,10 +371,14 @@ function renderer_draw() {
         
         if (instance.shader == renderer.grass_shader) {
             gl.useProgram(instance.shader);
+
+            // vertex uniforms
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_projection")!, false, projection_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_view")!, false, view_matrix);
-            gl.uniform3fv(gl.getUniformLocation(instance.shader, "u_sun_direction")!, renderer.sun_direction);
             gl.uniformMatrix4fv(gl.getUniformLocation(instance.shader, "u_model")!, false, model_matrix);
+            gl.uniform1f(gl.getUniformLocation(instance.shader, "u_time")!, performance.now() / 1000);
+
+            // fragment uniforms
             gl.uniform4fv(gl.getUniformLocation(instance.shader, "u_colour")!, instance.colour);
 
             gl.activeTexture(gl.TEXTURE0);
@@ -384,8 +392,6 @@ function renderer_draw() {
             gl.activeTexture(gl.TEXTURE2);
             gl.bindTexture(gl.TEXTURE_2D, renderer.wind_texture);
             gl.uniform1i(gl.getUniformLocation(instance.shader, "u_wind_texture")!, 2);
-
-            gl.uniform1f(gl.getUniformLocation(instance.shader, "u_time")!, performance.now() / 1000);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -502,7 +508,7 @@ function main() {
     };
 
     const grass_width = 100;
-    const grass_spacing = 0.2;
+    const grass_spacing = 0.3;
 
     for (let x = 0; x < grass_width; x++) {
         for (let z = 0; z < grass_width; z++) {
