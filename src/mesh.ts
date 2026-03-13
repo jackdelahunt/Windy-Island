@@ -5,7 +5,17 @@ export type Mesh = {
     vao: WebGLVertexArrayObject;
     index_buffer: WebGLBuffer;
     index_count: number;
+    vertices?: Float32Array;
+    indices?: Uint16Array;
 };
+
+export function mesh_get_vertices(mesh: Mesh): Float32Array | undefined {
+    return mesh.vertices;
+}
+
+export function mesh_get_indices(mesh: Mesh): Uint16Array | undefined {
+    return mesh.indices;
+}
 
 export function mesh_load_obj(gl: WebGL2RenderingContext, obj_source: string): Mesh {
     const obj_file = new OBJFileParser(obj_source);
@@ -145,6 +155,8 @@ function mesh_upload_data(gl: WebGL2RenderingContext, vertices: Float32Array, in
     return {
         vao: vao,
         index_buffer: index_buffer,
-        index_count: indices.length
+        index_count: indices.length,
+        vertices: vertices,
+        indices: indices,
     };
 }
