@@ -7,21 +7,15 @@ in vec2 a_uv;
 
 out vec2 v_uv;
 out vec3 v_normal;
-out float v_slope;
-out float v_height;
 
 uniform mat4 u_projection;
 uniform mat4 u_view;
 uniform mat4 u_model;
-uniform vec3 u_sun_direction;
 
 void main() {
     v_uv = a_uv;
-    v_normal = mat3(u_model) * a_normal;
-    
-    v_slope = v_normal.y;
-    v_height = (u_model * vec4(a_position, 1.0)).y;
-    
+    v_normal = a_normal;
+
     gl_Position = u_projection * u_view * u_model * vec4(a_position, 1);
 }
 
@@ -31,17 +25,20 @@ precision mediump float;
 
 in vec2 v_uv;
 in vec3 v_normal;
-in float v_slope;
-in float v_height;
 
 out vec4 frag_colour;
 
 uniform vec3 u_sun_direction;
+uniform sampler2D u_texture;
 
 const float GRASS_SLOPE_CUTOFF = 0.8;
-const float BEACH_HEIGHT = 2.0;
+const float BEACH_HEIGHT = 1.0;
 
 void main() {
+    vec3 texture_sample = texture(u_texture, v_uv).rgb;
+    float world_slope = texture_sample.r;
+    float world_height = texture_sample.g;
+
     vec3 normal = normalize(v_normal);
     vec3 sun_dir = normalize(u_sun_direction);
     
@@ -54,13 +51,17 @@ void main() {
     vec3 beach = vec3(0.76, 0.7, 0.5);
     
     vec3 base_colour = green;
+    #if 0
     if (v_slope < GRASS_SLOPE_CUTOFF) {
         base_colour = gray;
     }
-    
-    if (v_height < BEACH_HEIGHT) {
+
+    if (v_world_height < BEACH_HEIGHT) {
         base_colour = beach;
     }
+    #endif
 
-    frag_colour = vec4(base_colour * light, 1.0);
+    // frag_colour = vec4(base_colour * light, 1.0);
+    frag_colour = vec4(world_slope, world_height / 2.0, 0, 1.0);
+    // frag_colour = vec4(v_uv.rg, 0, 1.0);
 }

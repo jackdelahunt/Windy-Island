@@ -65,13 +65,14 @@ function camera_up(camera: Camera): vec3 {
 
 type MeshShaderInputs = {
     type: "mesh";
-    sunDirection: vec3;
     texture: WebGLTexture;
+    sunDirection: vec3;
     colour: vec4;
 };
 
 type IslandShaderInputs = {
     type: "island";
+    texture: WebGLTexture;
     sunDirection: vec3;
 };
 
@@ -312,6 +313,10 @@ function renderer_draw() {
 
             gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sunDirection);
 
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_texture")!, 0);
+
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
@@ -416,6 +421,7 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
+            texture: renderer.island_normal_texture,
             sunDirection: renderer.sun_direction,
         },
     };
@@ -454,7 +460,7 @@ if (true) {
     };
 
     renderer.instances.push(tree);
-
+if (false) {
     const ocean: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 0.1, 0),
@@ -470,6 +476,7 @@ if (true) {
     };
 
     renderer.instances.push(ocean);
+}
 
 if (false) {
     const wind: MeshInstance = {
