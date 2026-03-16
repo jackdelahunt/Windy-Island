@@ -31,8 +31,12 @@ out vec4 frag_colour;
 uniform vec3 u_sun_direction;
 uniform sampler2D u_texture;
 
-const float GRASS_SLOPE_CUTOFF = 0.8;
-const float BEACH_HEIGHT = 1.0;
+const float GRASS_SLOPE_CUTOFF = 0.7;
+const float BEACH_HEIGHT_CUTOFF = 1.0;
+
+const vec3 GRASS_COLOUR = vec3(0.08, 0.3, 0.08);
+const vec3 STONE_COLOUR = vec3(0.4, 0.4, 0.4);
+const vec3 BEACH_COLOUR = vec3(0.76, 0.7, 0.5);
 
 void main() {
     vec3 texture_sample = texture(u_texture, v_uv).rgb;
@@ -45,23 +49,18 @@ void main() {
     float diffuse = max(dot(normal, -sun_dir), 0.0);
     vec3 ambient = vec3(0.2);
     vec3 light = ambient + vec3(diffuse);
-    
-    vec3 green = vec3(0.0, 0.5, 0.0);
-    vec3 gray = vec3(0.4, 0.4, 0.4);
-    vec3 beach = vec3(0.76, 0.7, 0.5);
-    
-    vec3 base_colour = green;
-    #if 0
-    if (v_slope < GRASS_SLOPE_CUTOFF) {
-        base_colour = gray;
+     
+    vec3 base_colour = GRASS_COLOUR;
+
+    if (world_height < BEACH_HEIGHT_CUTOFF) {
+        base_colour = BEACH_COLOUR;
     }
 
-    if (v_world_height < BEACH_HEIGHT) {
-        base_colour = beach;
+    if (world_slope < GRASS_SLOPE_CUTOFF) {
+        base_colour = STONE_COLOUR;
     }
-    #endif
 
-    // frag_colour = vec4(base_colour * light, 1.0);
-    frag_colour = vec4(world_slope, world_height / 2.0, 0, 1.0);
+    frag_colour = vec4(base_colour * light, 1.0);
+    // frag_colour = vec4(world_slope, world_height, 0, 1.0);
     // frag_colour = vec4(v_uv.rg, 0, 1.0);
 }

@@ -15,7 +15,7 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
-import ISLAND_NORMAL_TEXTURE_SOURCE from "./assets/models/island/normal_map.png";
+import ISLAND_LAYOUT_TEXTURE_SOURCE from "./assets/models/island/normal_map.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -112,7 +112,7 @@ type Renderer = {
     grass_texture: WebGLTexture;
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
-    island_normal_texture: WebGLTexture;
+    island_layout_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -144,8 +144,8 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 18, 10),
-            rotation: vec3.fromValues(0, 0, 0),
+            position: vec3.fromValues(0, 30, 60),
+            rotation: vec3.fromValues(-20, 0, 0),
             fov: 80,
             near_plane: 0.1,
             far_plane: 200,
@@ -162,7 +162,7 @@ function renderer_init() {
         grass_texture: load_texture(GRASS_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
-        island_normal_texture: load_texture(ISLAND_NORMAL_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        island_layout_texture: load_texture(ISLAND_LAYOUT_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -421,13 +421,15 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
-            texture: renderer.island_normal_texture,
+            texture: renderer.island_layout_texture,
             sunDirection: renderer.sun_direction,
         },
     };
 
     renderer.instances.push(island);
+}
 
+if (false) {
     const normal_map: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 18, 8),
@@ -437,7 +439,7 @@ if (true) {
         shader_inputs: {
             type: "mesh",
             sunDirection: renderer.sun_direction,
-            texture: renderer.island_normal_texture,
+            texture: renderer.island_layout_texture,
             colour: WHITE,
         },
     };
@@ -460,7 +462,7 @@ if (true) {
     };
 
     renderer.instances.push(tree);
-if (false) {
+if (true) {
     const ocean: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 0.1, 0),
@@ -530,10 +532,10 @@ if (false) {
     renderer.instances.push(ground);
 }
 
-if (false) {
-    const grass_width = 20;
-    const grass_spacing = 0.3;
-    const grass_y = 10;
+if (true) {
+    const grass_width = 100;
+    const grass_spacing = 0.4;
+    const grass_y = 15;
 
     for (let x = 0; x < grass_width; x++) {
         for (let z = 0; z < grass_width; z++) {
@@ -576,7 +578,7 @@ function update_and_draw() {
         return;
     }
 
-    const speed = 0.09;
+    const speed = 0.3;
     const input: vec3 = vec3.fromValues(0, 0, 0);
 
     if (keyboard.keys[Key.A] === InputState.Down) {
