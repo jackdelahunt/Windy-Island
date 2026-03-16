@@ -95,6 +95,14 @@ type MeshInstance = {
     shader_inputs: ShaderInputs;
 };
 
+type Texture = {
+    loaded: boolean,
+    width: number,
+    height: number,
+    data: Uint8Array,
+    gl_texture: WebGLTexture,
+};
+
 type Renderer = {
     camera: Camera;
 
@@ -112,7 +120,8 @@ type Renderer = {
     grass_texture: WebGLTexture;
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
-    island_layout_texture: WebGLTexture;
+
+    neo_texture: Texture,
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -162,7 +171,7 @@ function renderer_init() {
         grass_texture: load_texture(GRASS_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
-        island_layout_texture: load_texture(ISLAND_LAYOUT_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        neo_texture: load_neo_texture(ISLAND_LAYOUT_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -220,6 +229,52 @@ function load_texture(image_source: string, wrap_method: GLint, filter_method: G
 
     return texture;
 }
+
+function load_neo_texture(image_source: string, wrap_method: GLint, filter_method: GLint): Texture {
+    const texture: Texture = {
+        loaded: false,
+        width: 0,
+        height: 0,
+        data: {} as Uint8Array,
+        gl_texture: gl.createTexture(),
+    };
+
+    const image = new Image();
+    image.src = image_source;
+
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, texture.gl_texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap_method);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap_method);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_method);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_method);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(image, 0, 0);
+
+        texture.loaded = true;
+        texture.width = image.width;
+        texture.height = image.height;
+        texture.data = new Uint8Array(ctx.getImageData(0, 0, image.width, image.height).data);
+        console.log(texture)
+    };
+
+    image.onerror = () => {
+        log_error("failed to load texture");
+    }
+
+    return texture;
+}
+
 
 function texture_generate_noise(): WebGLTexture {
     const width = 256;
@@ -421,7 +476,7 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
-            texture: renderer.island_layout_texture,
+            texture: renderer.neo_texture.gl_texture,
             sunDirection: renderer.sun_direction,
         },
     };
@@ -429,7 +484,7 @@ if (true) {
     renderer.instances.push(island);
 }
 
-if (false) {
+if (true) {
     const normal_map: MeshInstance = {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 18, 8),
@@ -439,7 +494,7 @@ if (false) {
         shader_inputs: {
             type: "mesh",
             sunDirection: renderer.sun_direction,
-            texture: renderer.island_layout_texture,
+            texture: renderer.neo_texture.gl_texture,
             colour: WHITE,
         },
     };
