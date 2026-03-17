@@ -3,6 +3,7 @@ import { mat4, vec2, vec3, vec4, quat } from "gl-matrix";
 import { InputState, Key, keyboard, mouse, input_init, input_reset, input_poll } from "./input";
 import type { Mesh } from "./mesh";
 import { mesh_load_cube, mesh_load_quad, mesh_load_obj, mesh_get_vertices, mesh_get_indices } from "./mesh";
+import { sampleIslandSurface } from "./raycast";
 
 import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 import GRASS_SHADER_SOURCE from "./assets/shaders/grass.glsl?raw";
@@ -135,6 +136,7 @@ const TREE_BROWN = hex_to_colour("#605025ff");
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
 let renderer: Renderer = {} as Renderer;
+let island_surface_points: vec3[] = [];
 
 function browser_init() {
     canvas = document.getElementById("canvas")! as HTMLCanvasElement;
@@ -411,6 +413,7 @@ function load_shader(gl: WebGL2RenderingContext, type: number, source: string): 
 function main() {
     browser_init();
     renderer_init();
+    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 2, 50);
 
 if (true) {
     const island: MeshInstance = {
@@ -514,29 +517,23 @@ if (false) {
 }
 
 if (true) {
-    const grass_width = 100;
-    const grass_spacing = 0.4;
-    const grass_y = 15;
+    for (const point of island_surface_points) {
+        const grass: MeshInstance = {
+            mesh: renderer.grass_mesh,
+            position: vec3.fromValues(point[0], point[1], point[2]),
+            rotation: vec3.fromValues(0, Math.random() * 360, 0),
+            scale: vec3.fromValues(0.4, 0.4, 0.4),
+            back_face_culling: false,
+            shader_inputs: {
+                type: "grass",
+                texture: renderer.grass_texture,
+                noiseTexture: renderer.noise_texture,
+                windTexture: renderer.wind_texture,
+                colour: GRASS_GREEN,
+            } as ShaderInputs,
+        };
 
-    for (let x = 0; x < grass_width; x++) {
-        for (let z = 0; z < grass_width; z++) {
-            const grass: MeshInstance = {
-                mesh: renderer.grass_mesh,
-                position: vec3.fromValues(x * grass_spacing - (grass_width * grass_spacing / 2), grass_y, z * grass_spacing - (grass_width * grass_spacing / 2)),
-                rotation: vec3.fromValues(0, Math.random() * 360, 0),
-                scale: vec3.fromValues(0.4, 0.4, 0.4),
-                back_face_culling: false,
-                shader_inputs: {
-                    type: "grass",
-                    texture: renderer.grass_texture,
-                    noiseTexture: renderer.noise_texture,
-                    windTexture: renderer.wind_texture,
-                    colour: GRASS_GREEN,
-                } as ShaderInputs,
-            };
-
-            renderer.instances.push(grass);
-        }
+        renderer.instances.push(grass);
     }
 }
 
