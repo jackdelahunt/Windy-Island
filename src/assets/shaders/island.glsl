@@ -7,16 +7,23 @@ in vec2 a_uv;
 
 out vec2 v_uv;
 out vec3 v_normal;
+out vec3 v_world_normal;
+out vec3 v_world_position;
 
 uniform mat4 u_projection;
 uniform mat4 u_view;
 uniform mat4 u_model;
 
 void main() {
+    vec4 world_normal = u_model * vec4(a_normal, 1);
+    vec4 world_position = u_model * vec4(a_position, 1);
+
     v_uv = a_uv;
     v_normal = a_normal;
+    v_world_normal = world_normal.xyz;
+    v_world_position = world_position.xyz;
 
-    gl_Position = u_projection * u_view * u_model * vec4(a_position, 1);
+    gl_Position = u_projection * u_view * world_position;
 }
 
 @fragment
@@ -25,11 +32,12 @@ precision mediump float;
 
 in vec2 v_uv;
 in vec3 v_normal;
+in vec3 v_world_normal;
+in vec3 v_world_position;
 
 out vec4 frag_colour;
 
 uniform vec3 u_sun_direction;
-uniform sampler2D u_texture;
 
 const float GRASS_SLOPE_CUTOFF = 0.7;
 const float BEACH_HEIGHT_CUTOFF = 1.0;
@@ -39,9 +47,8 @@ const vec3 STONE_COLOUR = vec3(0.4, 0.4, 0.4);
 const vec3 BEACH_COLOUR = vec3(0.76, 0.7, 0.5);
 
 void main() {
-    vec3 texture_sample = texture(u_texture, v_uv).rgb;
-    float world_slope = texture_sample.r;
-    float world_height = texture_sample.g;
+    float world_slope = v_world_normal.y;
+    float world_height = v_world_position.y;
 
     vec3 normal = normalize(v_normal);
     vec3 sun_dir = normalize(u_sun_direction);

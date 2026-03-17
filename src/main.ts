@@ -15,7 +15,6 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
-import ISLAND_LAYOUT_TEXTURE_SOURCE from "./assets/models/island/normal_map.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -72,7 +71,6 @@ type MeshShaderInputs = {
 
 type IslandShaderInputs = {
     type: "island";
-    texture: WebGLTexture;
     sunDirection: vec3;
 };
 
@@ -120,8 +118,6 @@ type Renderer = {
     grass_texture: WebGLTexture;
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
-
-    neo_texture: Texture,
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -171,7 +167,6 @@ function renderer_init() {
         grass_texture: load_texture(GRASS_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
-        neo_texture: load_neo_texture(ISLAND_LAYOUT_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
     }
@@ -229,52 +224,6 @@ function load_texture(image_source: string, wrap_method: GLint, filter_method: G
 
     return texture;
 }
-
-function load_neo_texture(image_source: string, wrap_method: GLint, filter_method: GLint): Texture {
-    const texture: Texture = {
-        loaded: false,
-        width: 0,
-        height: 0,
-        data: {} as Uint8Array,
-        gl_texture: gl.createTexture(),
-    };
-
-    const image = new Image();
-    image.src = image_source;
-
-    image.onload = () => {
-        gl.bindTexture(gl.TEXTURE_2D, texture.gl_texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap_method);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap_method);
-
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_method);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_method);
-
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-
-        const canvas = document.createElement("canvas");
-        canvas.width = image.width;
-        canvas.height = image.height;
-
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(image, 0, 0);
-
-        texture.loaded = true;
-        texture.width = image.width;
-        texture.height = image.height;
-        texture.data = new Uint8Array(ctx.getImageData(0, 0, image.width, image.height).data);
-        console.log(texture)
-    };
-
-    image.onerror = () => {
-        log_error("failed to load texture");
-    }
-
-    return texture;
-}
-
 
 function texture_generate_noise(): WebGLTexture {
     const width = 256;
@@ -367,10 +316,6 @@ function renderer_draw() {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_projection")!, false, projection_matrix);
 
             gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sunDirection);
-
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.texture);
-            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_texture")!, 0);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -476,30 +421,11 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
-            texture: renderer.neo_texture.gl_texture,
             sunDirection: renderer.sun_direction,
         },
     };
 
     renderer.instances.push(island);
-}
-
-if (true) {
-    const normal_map: MeshInstance = {
-        mesh: renderer.quad_mesh,
-        position: vec3.fromValues(0, 18, 8),
-        rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(1, 1, 1),
-        back_face_culling: true,
-        shader_inputs: {
-            type: "mesh",
-            sunDirection: renderer.sun_direction,
-            texture: renderer.neo_texture.gl_texture,
-            colour: WHITE,
-        },
-    };
-
-    renderer.instances.push(normal_map);
 }
 
     const tree: MeshInstance = {
