@@ -39,7 +39,7 @@ out vec4 frag_colour;
 
 uniform vec3 u_sun_direction;
 
-const float GRASS_SLOPE_CUTOFF = 0.7;
+const float GRASS_SLOPE_CUTOFF = 0.8;
 const float BEACH_HEIGHT_CUTOFF = 1.0;
 
 const vec3 GRASS_COLOUR = vec3(0.08, 0.3, 0.08);

@@ -413,7 +413,11 @@ function load_shader(gl: WebGL2RenderingContext, type: number, source: string): 
 function main() {
     browser_init();
     renderer_init();
-    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 2, 50);
+
+    const surfaceStart = performance.now();
+    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.5, 50);
+    const surfaceEnd = performance.now();
+    console.log(`Surface sampling: ${island_surface_points.length} points in ${(surfaceEnd - surfaceStart).toFixed(2)}ms`);
 
 if (true) {
     const island: MeshInstance = {

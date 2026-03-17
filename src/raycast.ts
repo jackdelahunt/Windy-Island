@@ -74,19 +74,101 @@ export function intersectRayTriangle(
     return null;
 }
 
-export function intersectRayMesh(ray: Ray, mesh: Mesh): vec3 | null {
-    const vertices = mesh.vertices;
-    const indices = mesh.indices;
+type SpatialGrid = {
+    cells: Map<number, number[]>;
+    cellSize: number;
+    minX: number;
+    minZ: number;
+};
 
-    if (!vertices || !indices) {
+const BEACH_LINE = 1;
+const MIN_FLATNESS = 0.8;
+
+function buildSpatialGrid(mesh: Mesh, cellSize: number): SpatialGrid {
+    const vertices = mesh.vertices!;
+    const indices = mesh.indices!;
+    const stride = 8;
+
+    let minX = Infinity, maxX = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+
+    for (let i = 0; i < indices.length; i += 3) {
+        for (let j = 0; j < 3; j++) {
+            const idx = indices[i + j] * stride;
+            const x = vertices[idx];
+            const z = vertices[idx + 2];
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (z < minZ) minZ = z;
+            if (z > maxZ) maxZ = z;
+        }
+    }
+
+    const cells = new Map<number, number[]>();
+    const invCellSize = 1.0 / cellSize;
+
+    for (let i = 0; i < indices.length; i += 3) {
+        const i0 = indices[i] * stride;
+        const i1 = indices[i + 1] * stride;
+        const i2 = indices[i + 2] * stride;
+
+        const y0 = vertices[i0 + 1];
+        const y1 = vertices[i1 + 1];
+        const y2 = vertices[i2 + 1];
+
+        if (y0 <= BEACH_LINE || y1 <= BEACH_LINE || y2 <= BEACH_LINE) {
+            continue;
+        }
+
+        const nx = vertices[i0 + 3] + vertices[i1 + 3] + vertices[i2 + 3];
+        const ny = vertices[i0 + 4] + vertices[i1 + 4] + vertices[i2 + 4];
+        const nz = vertices[i0 + 5] + vertices[i1 + 5] + vertices[i2 + 5];
+        const normalLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        const normalY = ny / normalLen;
+
+        if (normalY < MIN_FLATNESS) {
+            continue;
+        }
+
+        const minTx = Math.floor((Math.min(vertices[i0], vertices[i1], vertices[i2]) - minX) * invCellSize);
+        const maxTx = Math.floor((Math.max(vertices[i0], vertices[i1], vertices[i2]) - minX) * invCellSize);
+        const minTz = Math.floor((Math.min(vertices[i0 + 2], vertices[i1 + 2], vertices[i2 + 2]) - minZ) * invCellSize);
+        const maxTz = Math.floor((Math.max(vertices[i0 + 2], vertices[i1 + 2], vertices[i2 + 2]) - minZ) * invCellSize);
+
+        for (let cx = minTx; cx <= maxTx; cx++) {
+            for (let cz = minTz; cz <= maxTz; cz++) {
+                const key = cx * 10000 + cz;
+                const cell = cells.get(key);
+                if (cell) {
+                    cell.push(i);
+                } else {
+                    cells.set(key, [i]);
+                }
+            }
+        }
+    }
+
+    return { cells, cellSize, minX, minZ };
+}
+
+function intersectRayMeshWithGrid(ray: Ray, mesh: Mesh, grid: SpatialGrid): vec3 | null {
+    const vertices = mesh.vertices!;
+    const indices = mesh.indices!;
+    const stride = 8;
+
+    const cellX = Math.floor((ray.origin[0] - grid.minX) / grid.cellSize);
+    const cellZ = Math.floor((ray.origin[2] - grid.minZ) / grid.cellSize);
+    const key = cellX * 10000 + cellZ;
+    const triangles = grid.cells.get(key);
+
+    if (!triangles) {
         return null;
     }
 
-    const stride = 8;
     let closest: vec3 | null = null;
     let closestDist = Infinity;
 
-    for (let i = 0; i < indices.length; i += 3) {
+    for (const i of triangles) {
         const i0 = indices[i] * stride;
         const i1 = indices[i + 1] * stride;
         const i2 = indices[i + 2] * stride;
@@ -98,7 +180,7 @@ export function intersectRayMesh(ray: Ray, mesh: Mesh): vec3 | null {
         const hit = intersectRayTriangle(ray, v0, v1, v2);
 
         if (hit) {
-            const dist = vec3.distance(ray.origin, hit);
+            const dist = ray.origin[1] - hit[1];
             if (dist < closestDist) {
                 closestDist = dist;
                 closest = hit;
@@ -111,9 +193,11 @@ export function intersectRayMesh(ray: Ray, mesh: Mesh): vec3 | null {
 
 export function sampleIslandSurface(mesh: Mesh, extent: number, spacing: number, rayHeight: number): vec3[] {
     const points: vec3[] = [];
-
     const gridSize = Math.floor(extent / spacing) + 1;
     const halfExtent = (gridSize - 1) * spacing / 2;
+    const cellSize = spacing;
+
+    const grid = buildSpatialGrid(mesh, cellSize);
 
     for (let x = 0; x < gridSize; x++) {
         for (let z = 0; z < gridSize; z++) {
@@ -125,7 +209,7 @@ export function sampleIslandSurface(mesh: Mesh, extent: number, spacing: number,
                 direction: vec3.fromValues(0, -1, 0),
             };
 
-            const hit = intersectRayMesh(ray, mesh);
+            const hit = intersectRayMeshWithGrid(ray, mesh, grid);
 
             if (hit) {
                 points.push(hit);
