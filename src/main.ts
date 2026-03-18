@@ -415,7 +415,7 @@ function main() {
     renderer_init();
 
     const surfaceStart = performance.now();
-    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.5, 50);
+    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.4, 0.1, 50);
     const surfaceEnd = performance.now();
     console.log(`Surface sampling: ${island_surface_points.length} points in ${(surfaceEnd - surfaceStart).toFixed(2)}ms`);
 
@@ -560,7 +560,7 @@ function update_and_draw() {
         return;
     }
 
-    const speed = 0.3;
+    const speed = 1;
     const input: vec3 = vec3.fromValues(0, 0, 0);
 
     if (keyboard.keys[Key.A] === InputState.Down) {

@@ -191,7 +191,7 @@ function intersectRayMeshWithGrid(ray: Ray, mesh: Mesh, grid: SpatialGrid): vec3
     return closest;
 }
 
-export function sampleIslandSurface(mesh: Mesh, extent: number, spacing: number, rayHeight: number): vec3[] {
+export function sampleIslandSurface(mesh: Mesh, extent: number, spacing: number, variance: number, rayHeight: number): vec3[] {
     const points: vec3[] = [];
     const gridSize = Math.floor(extent / spacing) + 1;
     const halfExtent = (gridSize - 1) * spacing / 2;
@@ -201,8 +201,11 @@ export function sampleIslandSurface(mesh: Mesh, extent: number, spacing: number,
 
     for (let x = 0; x < gridSize; x++) {
         for (let z = 0; z < gridSize; z++) {
-            const xPos = x * spacing - halfExtent;
-            const zPos = z * spacing - halfExtent;
+            const noisex = ((Math.random() * 2) - 1) * variance;
+            const noisez = ((Math.random() * 2) - 1) * variance;
+
+            const xPos = x * spacing - halfExtent + noisex;
+            const zPos = z * spacing - halfExtent + noisez;
 
             const ray: Ray = {
                 origin: vec3.fromValues(xPos, rayHeight, zPos),
