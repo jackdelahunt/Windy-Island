@@ -18,6 +18,7 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
+import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -68,25 +69,26 @@ function camera_up(camera: Camera): vec3 {
 type MeshShaderInputs = {
     type: "mesh";
     texture: WebGLTexture;
-    sunDirection: vec3;
+    sun_direction: vec3;
     colour: vec4;
 };
 
 type WaterShaderInputs = {
     type: "water";
+    water_texture: WebGLTexture;
     colour: vec4;
 };
 
 type IslandShaderInputs = {
     type: "island";
-    sunDirection: vec3;
+    sun_direction: vec3;
 };
 
 type GrassShaderInputs = {
     type: "grass";
     texture: WebGLTexture;
-    noiseTexture: WebGLTexture;
-    windTexture: WebGLTexture;
+    noise_texture: WebGLTexture;
+    wind_texture: WebGLTexture;
     colour: vec4;
 };
 
@@ -188,6 +190,7 @@ type Renderer = {
     grass_texture: WebGLTexture;
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
+    water_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -242,6 +245,7 @@ function renderer_init() {
         grass_texture: load_texture(GRASS_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        water_texture: load_texture(WATER_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
         depth_framebuffer: framebuffer_create(canvas.width, canvas.height),
@@ -455,11 +459,11 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_texture")!, 0);
 
             gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.noiseTexture);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.noise_texture);
             gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_noise_texture")!, 1);
 
             gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.windTexture);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.wind_texture);
             gl.uniform1i(gl.getUniformLocation(renderer.grass_shader, "u_wind_texture")!, 2);
 
             gl.bindVertexArray(instance.mesh.vao);
@@ -473,7 +477,7 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_view")!, false, view_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_projection")!, false, projection_matrix);
 
-            gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sunDirection);
+            gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sun_direction);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -493,6 +497,10 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, renderer.depth_framebuffer.depth_texture);
             gl.uniform1i(gl.getUniformLocation(renderer.water_shader, "u_depth_texture")!, 0);
+
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, renderer.water_texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.water_shader, "u_water_texture")!, 1);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -585,7 +593,7 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
-            sunDirection: renderer.sun_direction,
+            sun_direction: renderer.sun_direction,
         },
     };
 
@@ -600,7 +608,7 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sunDirection: renderer.sun_direction,
+            sun_direction: renderer.sun_direction,
             texture: renderer.default_texture,
             colour: TREE_BROWN,
         },
@@ -617,6 +625,7 @@ if (true) {
         shader_inputs: {
             type: "water",
             colour: BLUE,
+            water_texture: renderer.water_texture,
         },
     };
 
@@ -632,7 +641,7 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sunDirection: renderer.sun_direction,
+            sun_direction: renderer.sun_direction,
             texture: renderer.wind_texture,
             colour: WHITE,
         },
@@ -648,7 +657,7 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sunDirection: renderer.sun_direction,
+            sun_direction: renderer.sun_direction,
             texture: renderer.noise_texture,
             colour: WHITE,
         },
@@ -666,7 +675,7 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sunDirection: renderer.sun_direction,
+            sun_direction: renderer.sun_direction,
             texture: renderer.default_texture,
             colour: GROUND_GREEN,
         },
@@ -686,8 +695,8 @@ if (true) {
             shader_inputs: {
                 type: "grass",
                 texture: renderer.grass_texture,
-                noiseTexture: renderer.noise_texture,
-                windTexture: renderer.wind_texture,
+                noise_texture: renderer.noise_texture,
+                wind_texture: renderer.wind_texture,
                 colour: GRASS_GREEN,
             } as ShaderInputs,
         };
