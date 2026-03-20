@@ -225,8 +225,8 @@ function browser_init() {
 function renderer_init() {
     renderer = {
         camera: {
-            position: vec3.fromValues(0, 30, 60),
-            rotation: vec3.fromValues(-20, 0, 0),
+            position: vec3.fromValues(5, 8, 50),
+            rotation: vec3.fromValues(-20, -22, 0),
             fov: 80,
             near_plane: 0.1,
             far_plane: 200,
@@ -618,7 +618,7 @@ if (true) {
 if (true) {
     const water: MeshInstance = {
         mesh: renderer.quad_mesh,
-        position: vec3.fromValues(0, 0.1, 0),
+        position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(-90, 0, 0),
         scale: vec3.fromValues(300, 300, 1),
         back_face_culling: true,

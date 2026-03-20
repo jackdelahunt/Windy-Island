@@ -39,8 +39,7 @@ const float LIGHT_FOAM_SCALE = 0.04;
 
 const float NEAR_PLANE = 0.1;
 const float FAR_PLANE = 200.0;
-const float SHORE_DEPTH_START = 0.2;
-
+const float SHORE_DEPTH_START = 1.5;
 
 float depth_to_linear(float depth) {
     float clip_depth = depth * 2.0 - 1.0;
@@ -75,7 +74,26 @@ void main() {
     float depth = max(floor_depth - water_depth, 0.0);
     float shore_strength = 1.0 - smoothstep(0.0, SHORE_DEPTH_START, depth);
 
-    colour.a = 1.0 - shore_strength;
+    if (shore_strength < 0.9) {
+        colour.a = 1.0 - shore_strength;
+    } else {
+        colour.rgb = vec3(1.0);
+    }
+
+    if (false) {
+        float fd_scaled = floor_depth / FAR_PLANE;
+        float wd_scaled = water_depth / FAR_PLANE;
+
+        if (depth_uv.x > 0.5) {
+            colour = vec4(vec3(fd_scaled), 1.0);
+        } else {
+            colour = vec4(vec3(wd_scaled), 1.0);
+        }
+
+        if (depth_uv.y > 0.5) {
+            colour = vec4(vec3(fd_scaled - wd_scaled), 1.0);
+        }
+    }
 
     frag_colour = colour;
 }
