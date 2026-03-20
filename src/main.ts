@@ -19,6 +19,7 @@ import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
+import STONE_TEXTURE_SOURCE from "./assets/textures/stone/stone.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -81,6 +82,7 @@ type WaterShaderInputs = {
 
 type IslandShaderInputs = {
     type: "island";
+    stone_texture: WebGLTexture;
     sun_direction: vec3;
 };
 
@@ -191,6 +193,7 @@ type Renderer = {
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
     water_texture: WebGLTexture;
+    stone_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -227,7 +230,7 @@ function renderer_init() {
         camera: {
             position: vec3.fromValues(5, 8, 50),
             rotation: vec3.fromValues(-20, -22, 0),
-            fov: 80,
+            fov: 75,
             near_plane: 0.1,
             far_plane: 200,
         },
@@ -246,6 +249,7 @@ function renderer_init() {
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         water_texture: load_texture(WATER_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        stone_texture: load_texture(STONE_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
         depth_framebuffer: framebuffer_create(canvas.width, canvas.height),
@@ -479,6 +483,10 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
 
             gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sun_direction);
 
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, renderer.stone_texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_stone_texture")!, 0);
+
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
         }
@@ -593,6 +601,7 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
+            stone_texture: renderer.stone_texture,
             sun_direction: renderer.sun_direction,
         },
     };

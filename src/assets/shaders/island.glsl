@@ -38,6 +38,7 @@ in vec3 v_world_position;
 out vec4 frag_colour;
 
 uniform vec3 u_sun_direction;
+uniform sampler2D u_stone_texture;
 
 const float GRASS_SLOPE_CUTOFF = 0.8;
 const float BEACH_HEIGHT_CUTOFF = 1.0;
@@ -64,7 +65,8 @@ void main() {
     }
 
     if (world_slope < GRASS_SLOPE_CUTOFF) {
-        base_colour = STONE_COLOUR;
+        // base_colour = STONE_COLOUR;
+        base_colour = texture(u_stone_texture, v_world_position.xz * 0.5).rgb;
     }
 
     frag_colour = vec4(base_colour * light, 1.0);
