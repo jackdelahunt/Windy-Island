@@ -20,6 +20,7 @@ import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
+import EDGE_TEXTURE_SOURCE from "./assets/textures/water/edge.png";
 import STONE_TEXTURE_SOURCE from "./assets/textures/stone/stone.png";
 
 function hex_to_colour(hex: string): vec4 {
@@ -77,6 +78,7 @@ type MeshShaderInputs = {
 type WaterShaderInputs = {
     type: "water";
     water_texture: WebGLTexture;
+    edge_texture: WebGLTexture;
     colour: vec4;
 };
 
@@ -194,6 +196,7 @@ type Renderer = {
     noise_texture: WebGLTexture;
     wind_texture: WebGLTexture;
     water_texture: WebGLTexture;
+    edge_texture: WebGLTexture;
     stone_texture: WebGLTexture;
 
     instances: MeshInstance[];
@@ -210,7 +213,7 @@ const BLUE: vec4 = [0, 0, 1, 1];
 const GROUND_GREEN: vec4 = [0.08, 0.3, 0.08, 1]; 
 const GRASS_GREEN: vec4 = hex_to_colour("#86ad3cff");
 const TREE_BROWN: vec4 = hex_to_colour("#605025ff");
-const SKY_BLUE: vec4 = [0.5, 0.7, 0.95, 1];
+const SKY_BLUE: vec4 = [0.5, 0.7, 0.85, 1];
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -252,6 +255,7 @@ function renderer_init() {
         noise_texture: texture_generate_noise(),
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         water_texture: load_texture(WATER_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        edge_texture: load_texture(EDGE_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.LINEAR),
         stone_texture: load_texture(STONE_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
@@ -312,7 +316,7 @@ function load_texture(image_source: string, wrap_method: GLint, filter_method: G
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter_method);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter_method);
 
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
     };
 
     image.onerror = () => {
@@ -428,6 +432,7 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
         mat4.scale(model_matrix, model_matrix, instance.scale);
 
         const shader_inputs = instance.shader_inputs;
+        const time = performance.now() / 1000;
 
         if (shader_inputs.type === "mesh") {
             gl.useProgram(renderer.mesh_shader);
@@ -451,7 +456,7 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_model")!, false, model_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_view")!, false, view_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.grass_shader, "u_projection")!, false, projection_matrix);
-            gl.uniform1f(gl.getUniformLocation(renderer.grass_shader, "u_time")!, performance.now() / 1000);
+            gl.uniform1f(gl.getUniformLocation(renderer.grass_shader, "u_time")!, time);
 
             gl.uniform4fv(gl.getUniformLocation(renderer.grass_shader, "u_colour")!, shader_inputs.colour);
 
@@ -495,10 +500,9 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.water_shader, "u_model")!, false, model_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.water_shader, "u_view")!, false, view_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.water_shader, "u_projection")!, false, projection_matrix);
+            gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_time")!, time);
 
             gl.uniform4fv(gl.getUniformLocation(renderer.water_shader, "u_colour")!, shader_inputs.colour);
-            gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_window_width")!, canvas.width);
-            gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_window_height")!, canvas.height);
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, renderer.depth_framebuffer.depth_texture);
@@ -507,6 +511,10 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, renderer.water_texture);
             gl.uniform1i(gl.getUniformLocation(renderer.water_shader, "u_water_texture")!, 1);
+
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, shader_inputs.edge_texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.water_shader, "u_edge_texture")!, 2);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -605,7 +613,7 @@ function main() {
     });
 
     const surfaceStart = performance.now();
-    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.7, 0.1, 50);
+    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.5, 0.1, 50);
     const surfaceEnd = performance.now();
     console.log(`Surface sampling: ${island_surface_points.length} points in ${(surfaceEnd - surfaceStart).toFixed(2)}ms`);
 
@@ -651,6 +659,7 @@ if (true) {
             type: "water",
             colour: BLUE,
             water_texture: renderer.water_texture,
+            edge_texture: renderer.edge_texture,
         },
     };
 

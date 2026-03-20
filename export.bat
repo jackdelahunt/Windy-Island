@@ -5,3 +5,4 @@ aseprite.exe -b "src\assets\textures\grass\grass.aseprite" --save-as "src\assets
 aseprite.exe -b "src\assets\textures\wind\wind.aseprite" --save-as "src\assets\textures\wind\wind.png"
 aseprite.exe -b "src\assets\textures\water\water.aseprite" --save-as "src\assets\textures\water\water.png"
 aseprite.exe -b "src\assets\textures\stone\stone.aseprite" --save-as "src\assets\textures\stone\stone.png"
+aseprite.exe -b "src\assets\textures\water\edge.aseprite" --save-as "src\assets\textures\water\edge.png"

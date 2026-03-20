@@ -41,12 +41,25 @@ uniform vec4 u_ambient_colour;
 uniform vec3 u_sun_direction;
 uniform sampler2D u_stone_texture;
 
+#define RGB(r, g, b) vec3(float(r) / 255.0, float(g) / 255.0, float(b) / 255.0)
+
+#define SRGB(r, g, b) (vec3( \
+    ((float(r) / 255.0) <= 0.04045 ? (float(r) / 255.0) / 12.92 : pow((float(r) / 255.0 + 0.055) / 1.055, 2.4)), \
+    ((float(g) / 255.0) <= 0.04045 ? (float(g) / 255.0) / 12.92 : pow((float(g) / 255.0 + 0.055) / 1.055, 2.4)), \
+    ((float(b) / 255.0) <= 0.04045 ? (float(b) / 255.0) / 12.92 : pow((float(b) / 255.0 + 0.055) / 1.055, 2.4)) \
+))
+
 const float GRASS_SLOPE_CUTOFF = 0.8;
 const float BEACH_HEIGHT_CUTOFF = 1.0;
 
-const vec3 GRASS_COLOUR = vec3(0.08, 0.3, 0.08);
-const vec3 STONE_COLOUR = vec3(0.4, 0.4, 0.4);
-const vec3 BEACH_COLOUR = vec3(0.76, 0.7, 0.5);
+const vec3 GRASS_COLOUR = RGB(21, 77, 21);
+const vec3 STONE_COLOUR = SRGB(240, 240, 240);
+const vec3 BEACH_COLOUR = SRGB(238, 193, 119);
+
+const float STONE_TEXTURE_SCALE = 10.0;
+
+const float AMBIENT_STRENGTH = 0.0;
+const float DIFFUSE_STRENGTH = 1.0;
 
 void main() {
     float world_slope = v_world_normal.y;
@@ -59,18 +72,19 @@ void main() {
     }
 
     if (world_slope < GRASS_SLOPE_CUTOFF) {
-        // base_colour = texture(u_stone_texture, v_world_position.xz * 0.5).rgb;
+        // base_colour = texture(u_stone_texture, v_uv * STONE_TEXTURE_SCALE).rgb;
         base_colour = STONE_COLOUR;
     }
 
     vec3 light = vec3(1.0);
 
-    {
+    if (true) {
         vec3 normal = normalize(v_normal);
         vec3 sun_dir = normalize(u_sun_direction);
         
-        float diffuse = max(dot(normal, -sun_dir), 0.0);
-        vec3 ambient = u_ambient_colour.rgb * 0.3;
+        float diffuse = max(dot(normal, -sun_dir), 0.0) * DIFFUSE_STRENGTH;
+        vec3 ambient = u_ambient_colour.rgb * AMBIENT_STRENGTH;
+
         light = ambient + vec3(diffuse);
     }
 
