@@ -70,7 +70,6 @@ function camera_up(camera: Camera): vec3 {
 type MeshShaderInputs = {
     type: "mesh";
     texture: WebGLTexture;
-    sun_direction: vec3;
     colour: vec4;
 };
 
@@ -206,9 +205,10 @@ const BLACK: vec4 = [0, 0, 0, 1];
 const RED: vec4 = [1, 0, 0, 1];
 const GREEN: vec4 = [0, 1, 0, 1];
 const BLUE: vec4 = [0, 0, 1, 1];
-const GROUND_GREEN = [0.08, 0.3, 0.08, 1]; 
-const GRASS_GREEN = hex_to_colour("#86ad3cff");
-const TREE_BROWN = hex_to_colour("#605025ff");
+const GROUND_GREEN: vec4 = [0.08, 0.3, 0.08, 1]; 
+const GRASS_GREEN: vec4 = hex_to_colour("#86ad3cff");
+const TREE_BROWN: vec4 = hex_to_colour("#605025ff");
+const SKY_BLUE: vec4 = [0.5, 0.7, 0.95, 1];
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -269,7 +269,7 @@ function renderer_init() {
     gl.frontFace(gl.CCW);
     gl.enable(gl.CULL_FACE);
 
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(SKY_BLUE[0], SKY_BLUE[1], SKY_BLUE[2], SKY_BLUE[3]);
 
     const depth_shaders = parse_shader_file(DEPTH_SHADER_SOURCE);
     renderer.depth_shader = load_shader_program(gl, depth_shaders.vertex, depth_shaders.fragment)!;
@@ -413,7 +413,6 @@ function renderer_depth_pass(view_matrix: mat4, projection_matrix: mat4) {
 
 function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
     framebuffer_bind(renderer.main_framebuffer);
-    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     for (const instance of renderer.instances) {
@@ -481,6 +480,7 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_view")!, false, view_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.island_shader, "u_projection")!, false, projection_matrix);
 
+            gl.uniform4fv(gl.getUniformLocation(renderer.island_shader, "u_ambient_colour")!, SKY_BLUE);
             gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sun_direction);
 
             gl.activeTexture(gl.TEXTURE0);
@@ -617,7 +617,6 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sun_direction: renderer.sun_direction,
             texture: renderer.default_texture,
             colour: TREE_BROWN,
         },
@@ -650,7 +649,6 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sun_direction: renderer.sun_direction,
             texture: renderer.wind_texture,
             colour: WHITE,
         },
@@ -666,7 +664,6 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sun_direction: renderer.sun_direction,
             texture: renderer.noise_texture,
             colour: WHITE,
         },
@@ -684,7 +681,6 @@ if (false) {
         back_face_culling: true,
         shader_inputs: {
             type: "mesh",
-            sun_direction: renderer.sun_direction,
             texture: renderer.default_texture,
             colour: GROUND_GREEN,
         },
