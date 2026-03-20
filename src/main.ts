@@ -9,6 +9,7 @@ import DEPTH_SHADER_SOURCE from "./assets/shaders/depth.glsl?raw";
 import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 import GRASS_SHADER_SOURCE from "./assets/shaders/grass.glsl?raw";
 import ISLAND_SHADER_SOURCE from "./assets/shaders/island.glsl?raw";
+import POST_PROCESS_SHADER_SOURCE from "./assets/shaders/post_process.glsl?raw";
 import WATER_SHADER_SOURCE from "./assets/shaders/water.glsl?raw";
 
 import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
@@ -179,6 +180,7 @@ type Renderer = {
     mesh_shader: WebGLProgram;
     grass_shader: WebGLProgram;
     island_shader: WebGLProgram;
+    post_process_shader: WebGLProgram;
     water_shader: WebGLProgram;
 
     cube_mesh: Mesh;
@@ -238,6 +240,7 @@ function renderer_init() {
         mesh_shader: {} as WebGLProgram,
         grass_shader: {} as WebGLProgram,
         island_shader: {} as WebGLProgram,
+        post_process_shader: {} as WebGLProgram,
         water_shader: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
@@ -282,6 +285,9 @@ function renderer_init() {
 
     const island_shaders = parse_shader_file(ISLAND_SHADER_SOURCE);
     renderer.island_shader = load_shader_program(gl, island_shaders.vertex, island_shaders.fragment)!;
+
+    const post_process_shaders = parse_shader_file(POST_PROCESS_SHADER_SOURCE);
+    renderer.post_process_shader = load_shader_program(gl, post_process_shaders.vertex, post_process_shaders.fragment)!;
 
     const water_shaders = parse_shader_file(WATER_SHADER_SOURCE);
     renderer.water_shader = load_shader_program(gl, water_shaders.vertex, water_shaders.fragment)!;
@@ -367,15 +373,7 @@ function renderer_draw() {
 
     renderer_depth_pass(view_matrix, projection_matrix);
     renderer_main_pass(view_matrix, projection_matrix);
-
-    { // blit
-        const blit_buffer = renderer.main_framebuffer;
-
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blit_buffer.framebuffer);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-        gl.blitFramebuffer(0, 0, blit_buffer.width, blit_buffer.height, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
+    renderer_post_process_pass();
 }
 
 function renderer_depth_pass(view_matrix: mat4, projection_matrix: mat4) {
@@ -515,6 +513,25 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
         }
         
     }
+}
+
+function renderer_post_process_pass() {
+    framebuffer_unbind();
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(renderer.post_process_shader);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, renderer.main_framebuffer.colour_texture);
+    gl.uniform1i(gl.getUniformLocation(renderer.post_process_shader, "u_scene_texture")!, 0);
+
+    gl.bindVertexArray(renderer.quad_mesh.vao);
+    gl.drawElements(gl.TRIANGLES, renderer.quad_mesh.index_count, gl.UNSIGNED_SHORT, 0);
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
 }
 
 function parse_shader_file(source: string): { vertex: string; fragment: string } {
