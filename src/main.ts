@@ -18,16 +18,17 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
-import SKYBOX_BACK_TEXTURE_SOURCE from "./assets/textures/skybox/back.jpg";
-import SKYBOX_BOTTOM_TEXTURE_SOURCE from "./assets/textures/skybox/bottom.jpg";
-import SKYBOX_FRONT_TEXTURE_SOURCE from "./assets/textures/skybox/front.jpg";
-import SKYBOX_LEFT_TEXTURE_SOURCE from "./assets/textures/skybox/left.jpg";
-import SKYBOX_RIGHT_TEXTURE_SOURCE from "./assets/textures/skybox/right.jpg";
-import SKYBOX_TOP_TEXTURE_SOURCE from "./assets/textures/skybox/top.jpg";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
 import EDGE_TEXTURE_SOURCE from "./assets/textures/water/edge.png";
 import STONE_TEXTURE_SOURCE from "./assets/textures/stone/stone.png";
+
+import SKYBOX_BACK_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
+import SKYBOX_BOTTOM_TEXTURE_SOURCE from "./assets/textures/skybox/160.png";
+import SKYBOX_FRONT_TEXTURE_SOURCE  from "./assets/textures/skybox/160.png";
+import SKYBOX_LEFT_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
+import SKYBOX_RIGHT_TEXTURE_SOURCE  from "./assets/textures/skybox/160.png";
+import SKYBOX_TOP_TEXTURE_SOURCE    from "./assets/textures/skybox/160.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -557,6 +558,8 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.water_shader, "u_view")!, false, view_matrix);
             gl.uniformMatrix4fv(gl.getUniformLocation(renderer.water_shader, "u_projection")!, false, projection_matrix);
             gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_time")!, time);
+            gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_near_plane")!, renderer.camera.near_plane);
+            gl.uniform1f(gl.getUniformLocation(renderer.water_shader, "u_far_plane")!, renderer.camera.far_plane);
 
             gl.uniform4fv(gl.getUniformLocation(renderer.water_shader, "u_colour")!, shader_inputs.colour);
 
@@ -730,7 +733,7 @@ if (true) {
         mesh: renderer.quad_mesh,
         position: vec3.fromValues(0, 0, 0),
         rotation: vec3.fromValues(-90, 0, 0),
-        scale: vec3.fromValues(300, 300, 1),
+        scale: vec3.fromValues(1000, 1000, 1),
         back_face_culling: true,
         shader_inputs: {
             type: "water",

@@ -27,6 +27,19 @@ out vec4 frag_colour;
 
 uniform samplerCube u_skybox;
 
+const float SKYBOX_ROTATION_RADIANS = 1.05;
+
+vec3 rotate_y(vec3 direction, float radians) {
+    float c = cos(radians);
+    float s = sin(radians);
+    return vec3(
+        direction.x * c + direction.z * s,
+        direction.y,
+        -direction.x * s + direction.z * c
+    );
+}
+
 void main() {
-    frag_colour = texture(u_skybox, normalize(v_direction));
+    vec3 rotated_direction = rotate_y(normalize(v_direction), SKYBOX_ROTATION_RADIANS);
+    frag_colour = texture(u_skybox, rotated_direction);
 }
