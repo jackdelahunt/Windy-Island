@@ -23,6 +23,8 @@ import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
 import EDGE_TEXTURE_SOURCE from "./assets/textures/water/edge.png";
 import STONE_TEXTURE_SOURCE from "./assets/textures/stone/stone.png";
 
+import ISLAND_AO_TEXTURE_SOURCE from "./assets/models/island/ao.png";
+
 import SKYBOX_BACK_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
 import SKYBOX_BOTTOM_TEXTURE_SOURCE from "./assets/textures/skybox/160.png";
 import SKYBOX_FRONT_TEXTURE_SOURCE  from "./assets/textures/skybox/160.png";
@@ -211,6 +213,7 @@ type Renderer = {
     edge_texture: WebGLTexture;
     skybox_texture: WebGLTexture;
     stone_texture: WebGLTexture;
+    island_ao_texture: WebGLTexture;
 
     instances: MeshInstance[];
     sun_direction: vec3;
@@ -278,6 +281,7 @@ function renderer_init() {
             { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, image_source: SKYBOX_BACK_TEXTURE_SOURCE },
         ]),
         stone_texture: load_texture(STONE_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
+        island_ao_texture: load_texture(ISLAND_AO_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
         depth_framebuffer: framebuffer_create(canvas.width, canvas.height),
@@ -546,6 +550,10 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, renderer.stone_texture);
             gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_stone_texture")!, 0);
+
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, renderer.island_ao_texture);
+            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_ao_texture")!, 1);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);

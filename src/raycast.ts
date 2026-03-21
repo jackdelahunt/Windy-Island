@@ -81,7 +81,7 @@ type SpatialGrid = {
     minZ: number;
 };
 
-const BEACH_LINE = 1;
+const BEACH_LINE = 1.4;
 const MIN_FLATNESS = 0.8;
 
 function buildSpatialGrid(mesh: Mesh, cellSize: number): SpatialGrid {

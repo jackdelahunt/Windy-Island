@@ -40,6 +40,7 @@ out vec4 frag_colour;
 uniform vec4 u_ambient_colour;
 uniform vec3 u_sun_direction;
 uniform sampler2D u_stone_texture;
+uniform sampler2D u_ao_texture;
 
 #define RGB(r, g, b) vec3(float(r) / 255.0, float(g) / 255.0, float(b) / 255.0)
 
@@ -50,15 +51,17 @@ uniform sampler2D u_stone_texture;
 ))
 
 const float GRASS_SLOPE_CUTOFF = 0.8;
-const float BEACH_HEIGHT_CUTOFF = 1.0;
+const float BEACH_HEIGHT_CUTOFF = 1.4;
+const float WET_BEACH_HEIGHT_CUTOFF = 0.1;
 
 const vec3 GRASS_COLOUR = RGB(21, 77, 21);
 const vec3 STONE_COLOUR = SRGB(240, 240, 240);
 const vec3 BEACH_COLOUR = SRGB(238, 193, 119);
+const vec3 WET_BEACH_COLOUR = SRGB(238, 180, 100);
 
 const float STONE_TEXTURE_SCALE = 10.0;
 
-const float AMBIENT_STRENGTH = 0.0;
+const float AMBIENT_STRENGTH = 0.15;
 const float DIFFUSE_STRENGTH = 1.0;
 
 void main() {
@@ -67,7 +70,9 @@ void main() {
  
     vec3 base_colour = GRASS_COLOUR;
 
-    if (world_height < BEACH_HEIGHT_CUTOFF) {
+    if (world_height < WET_BEACH_HEIGHT_CUTOFF) {
+        base_colour = WET_BEACH_COLOUR;
+    } else if (world_height < BEACH_HEIGHT_CUTOFF) {
         base_colour = BEACH_COLOUR;
     }
 
@@ -84,6 +89,11 @@ void main() {
         
         float diffuse = max(dot(normal, -sun_dir), 0.0) * DIFFUSE_STRENGTH;
         vec3 ambient = u_ambient_colour.rgb * AMBIENT_STRENGTH;
+
+        if (true) {
+            float ao = texture(u_ao_texture, v_uv).r;
+            ambient *= ao;
+        }
 
         light = ambient + vec3(diffuse);
     }
