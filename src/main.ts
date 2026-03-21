@@ -12,7 +12,6 @@ import ISLAND_SHADER_SOURCE from "./assets/shaders/island.glsl?raw";
 import POST_PROCESS_SHADER_SOURCE from "./assets/shaders/post_process.glsl?raw";
 import WATER_SHADER_SOURCE from "./assets/shaders/water.glsl?raw";
 
-import TREE_MODEL_SOURCE from "./assets/models/birch_tree_dead_4/BirchTree_Dead_4.obj?raw";
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
 import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 
@@ -187,7 +186,6 @@ type Renderer = {
 
     cube_mesh: Mesh;
     quad_mesh: Mesh;
-    tree_mesh: Mesh;
     grass_mesh: Mesh;
     island_mesh: Mesh;
 
@@ -247,7 +245,6 @@ function renderer_init() {
         water_shader: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
-        tree_mesh: mesh_load_obj(gl, TREE_MODEL_SOURCE),
         grass_mesh: mesh_load_obj(gl, GRASS_MODEL_SOURCE),
         island_mesh: mesh_load_obj(gl, ISLAND_MODEL_SOURCE),
         default_texture: load_texture(DEFAULT_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.NEAREST),
@@ -634,20 +631,6 @@ if (true) {
     renderer.instances.push(island);
 }
 
-    const tree: MeshInstance = {
-        mesh: renderer.tree_mesh,
-        position: vec3.fromValues(-5, 14, 0),
-        rotation: vec3.fromValues(0, 0, 0),
-        scale: vec3.fromValues(3, 3, 3),
-        back_face_culling: true,
-        shader_inputs: {
-            type: "mesh",
-            texture: renderer.default_texture,
-            colour: TREE_BROWN,
-        },
-    };
-
-    renderer.instances.push(tree);
 if (true) {
     const water: MeshInstance = {
         mesh: renderer.quad_mesh,
