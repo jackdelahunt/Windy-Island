@@ -226,6 +226,12 @@ const GROUND_GREEN: vec4 = [0.08, 0.3, 0.08, 1];
 const GRASS_GREEN: vec4 = hex_to_colour("#86ad3cff");
 const TREE_BROWN: vec4 = hex_to_colour("#605025ff");
 const SKY_BLUE: vec4 = [0.5, 0.7, 0.85, 1];
+const FOG_BLUE: vec4 = [0.68, 0.78, 0.88, 1];
+const FOG_START = 30.0;
+const FOG_DENSITY = 0.028;
+const FOG_HORIZON_HEIGHT = 0.48;
+const FOG_HORIZON_FALLOFF = 0.16;
+const FOG_HORIZON_STRENGTH = 0.9;
 
 let canvas: HTMLCanvasElement = {} as HTMLCanvasElement;
 let gl: WebGL2RenderingContext = {} as WebGL2RenderingContext;
@@ -618,6 +624,19 @@ function renderer_post_process_pass() {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, renderer.main_framebuffer.colour_texture);
     gl.uniform1i(gl.getUniformLocation(renderer.post_process_shader, "u_scene_texture")!, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, renderer.main_framebuffer.depth_texture);
+    gl.uniform1i(gl.getUniformLocation(renderer.post_process_shader, "u_depth_texture")!, 1);
+
+    gl.uniform3fv(gl.getUniformLocation(renderer.post_process_shader, "u_fog_colour")!, [FOG_BLUE[0], FOG_BLUE[1], FOG_BLUE[2]]);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_near_plane")!, renderer.camera.near_plane);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_far_plane")!, renderer.camera.far_plane);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_fog_start")!, FOG_START);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_fog_density")!, FOG_DENSITY);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_horizon_height")!, FOG_HORIZON_HEIGHT);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_horizon_falloff")!, FOG_HORIZON_FALLOFF);
+    gl.uniform1f(gl.getUniformLocation(renderer.post_process_shader, "u_horizon_strength")!, FOG_HORIZON_STRENGTH);
 
     gl.bindVertexArray(renderer.quad_mesh.vao);
     gl.drawElements(gl.TRIANGLES, renderer.quad_mesh.index_count, gl.UNSIGNED_SHORT, 0);
