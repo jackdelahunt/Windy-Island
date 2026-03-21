@@ -10,6 +10,7 @@ import MESH_SHADER_SOURCE from "./assets/shaders/mesh.glsl?raw";
 import GRASS_SHADER_SOURCE from "./assets/shaders/grass.glsl?raw";
 import ISLAND_SHADER_SOURCE from "./assets/shaders/island.glsl?raw";
 import POST_PROCESS_SHADER_SOURCE from "./assets/shaders/post_process.glsl?raw";
+import SKYBOX_SHADER_SOURCE from "./assets/shaders/skybox.glsl?raw";
 import WATER_SHADER_SOURCE from "./assets/shaders/water.glsl?raw";
 
 import GRASS_MODEL_SOURCE from "./assets/models/grass/grass.obj?raw";
@@ -17,6 +18,12 @@ import ISLAND_MODEL_SOURCE from "./assets/models/island/island.obj?raw";
 
 import DEFAULT_TEXTURE_SOURCE from "./assets/textures/default/default.png";
 import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
+import SKYBOX_BACK_TEXTURE_SOURCE from "./assets/textures/skybox/back.jpg";
+import SKYBOX_BOTTOM_TEXTURE_SOURCE from "./assets/textures/skybox/bottom.jpg";
+import SKYBOX_FRONT_TEXTURE_SOURCE from "./assets/textures/skybox/front.jpg";
+import SKYBOX_LEFT_TEXTURE_SOURCE from "./assets/textures/skybox/left.jpg";
+import SKYBOX_RIGHT_TEXTURE_SOURCE from "./assets/textures/skybox/right.jpg";
+import SKYBOX_TOP_TEXTURE_SOURCE from "./assets/textures/skybox/top.jpg";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
 import EDGE_TEXTURE_SOURCE from "./assets/textures/water/edge.png";
@@ -114,6 +121,11 @@ type Framebuffer = {
     height: number;
 };
 
+type CubemapFaceSource = {
+    target: GLenum;
+    image_source: string;
+};
+
 function framebuffer_configure(fbo: Framebuffer) {
     gl.bindTexture(gl.TEXTURE_2D, fbo.colour_texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fbo.width, fbo.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -182,6 +194,7 @@ type Renderer = {
     grass_shader: WebGLProgram;
     island_shader: WebGLProgram;
     post_process_shader: WebGLProgram;
+    skybox_shader: WebGLProgram;
     water_shader: WebGLProgram;
 
     cube_mesh: Mesh;
@@ -195,6 +208,7 @@ type Renderer = {
     wind_texture: WebGLTexture;
     water_texture: WebGLTexture;
     edge_texture: WebGLTexture;
+    skybox_texture: WebGLTexture;
     stone_texture: WebGLTexture;
 
     instances: MeshInstance[];
@@ -242,6 +256,7 @@ function renderer_init() {
         grass_shader: {} as WebGLProgram,
         island_shader: {} as WebGLProgram,
         post_process_shader: {} as WebGLProgram,
+        skybox_shader: {} as WebGLProgram,
         water_shader: {} as WebGLProgram,
         cube_mesh: mesh_load_cube(gl),
         quad_mesh: mesh_load_quad(gl),
@@ -253,6 +268,14 @@ function renderer_init() {
         wind_texture: load_texture(WIND_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         water_texture: load_texture(WATER_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         edge_texture: load_texture(EDGE_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.LINEAR),
+        skybox_texture: load_cubemap([
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, image_source: SKYBOX_RIGHT_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, image_source: SKYBOX_LEFT_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, image_source: SKYBOX_TOP_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, image_source: SKYBOX_BOTTOM_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, image_source: SKYBOX_FRONT_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, image_source: SKYBOX_BACK_TEXTURE_SOURCE },
+        ]),
         stone_texture: load_texture(STONE_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
@@ -290,6 +313,9 @@ function renderer_init() {
     const post_process_shaders = parse_shader_file(POST_PROCESS_SHADER_SOURCE);
     renderer.post_process_shader = load_shader_program(gl, post_process_shaders.vertex, post_process_shaders.fragment)!;
 
+    const skybox_shaders = parse_shader_file(SKYBOX_SHADER_SOURCE);
+    renderer.skybox_shader = load_shader_program(gl, skybox_shaders.vertex, skybox_shaders.fragment)!;
+
     const water_shaders = parse_shader_file(WATER_SHADER_SOURCE);
     renderer.water_shader = load_shader_program(gl, water_shaders.vertex, water_shaders.fragment)!;
 
@@ -319,6 +345,38 @@ function load_texture(image_source: string, wrap_method: GLint, filter_method: G
     image.onerror = () => {
         log_error("failed to load texture");
     }
+
+    return texture;
+}
+
+function load_cubemap(face_sources: CubemapFaceSource[]): WebGLTexture {
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+
+    for (const face of face_sources) {
+        gl.texImage2D(face.target, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0]));
+
+        const image = new Image();
+        image.src = face.image_source;
+
+        image.onload = () => {
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            gl.texImage2D(face.target, 0, gl.SRGB8, gl.RGB, gl.UNSIGNED_BYTE, image);
+        };
+
+        image.onerror = () => {
+            log_error(`failed to load cubemap face: ${face.image_source}`);
+        };
+    }
+
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
 
     return texture;
 }
@@ -413,6 +471,7 @@ function renderer_depth_pass(view_matrix: mat4, projection_matrix: mat4) {
 function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
     framebuffer_bind(renderer.main_framebuffer);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    renderer_draw_skybox(view_matrix, projection_matrix);
 
     for (const instance of renderer.instances) {
         if (instance.back_face_culling) {
@@ -518,6 +577,34 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
         }
         
     }
+}
+
+function renderer_draw_skybox(view_matrix: mat4, projection_matrix: mat4) {
+    const skybox_view_matrix = mat4.clone(view_matrix);
+    skybox_view_matrix[12] = 0;
+    skybox_view_matrix[13] = 0;
+    skybox_view_matrix[14] = 0;
+
+    gl.depthMask(false);
+    gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT);
+
+    gl.useProgram(renderer.skybox_shader);
+
+    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.skybox_shader, "u_view")!, false, skybox_view_matrix);
+    gl.uniformMatrix4fv(gl.getUniformLocation(renderer.skybox_shader, "u_projection")!, false, projection_matrix);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, renderer.skybox_texture);
+    gl.uniform1i(gl.getUniformLocation(renderer.skybox_shader, "u_skybox")!, 0);
+
+    gl.bindVertexArray(renderer.cube_mesh.vao);
+    gl.drawElements(gl.TRIANGLES, renderer.cube_mesh.index_count, gl.UNSIGNED_SHORT, 0);
+
+    gl.depthMask(true);
+    gl.depthFunc(gl.LESS);
+    gl.cullFace(gl.BACK);
 }
 
 function renderer_post_process_pass() {
