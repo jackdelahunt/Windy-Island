@@ -24,16 +24,19 @@ out vec4 frag_colour;
 
 uniform sampler2D u_scene_texture;
 uniform sampler2D u_depth_texture;
-uniform vec3 u_fog_colour;
 uniform float u_near_plane;
 uniform float u_far_plane;
-uniform float u_fog_start;
-uniform float u_fog_density;
-uniform float u_horizon_height;
-uniform float u_horizon_falloff;
-uniform float u_horizon_strength;
 
 const float GAMMA = 2.2;
+const vec3 FOG_COLOUR = vec3(0.68, 0.78, 0.88);
+const float FOG_START = 30.0;
+const float FOG_DENSITY = 0.028;
+const float FOG_HORIZON_HEIGHT = 0.48;
+const float FOG_HORIZON_FALLOFF = 0.16;
+const float FOG_HORIZON_STRENGTH = 0.5;
+const float VIGNETTE_STRENGTH = 0.4;
+const float VIGNETTE_RADIUS = 0.95;
+const float VIGNETTE_SOFTNESS = 0.3;
 
 float depth_to_linear(float depth) {
     if (depth >= 1.0) {
@@ -46,15 +49,23 @@ float depth_to_linear(float depth) {
 }
 
 vec3 apply_fog(vec3 scene_colour, float linear_depth, vec2 uv) {
-    float fog_distance = max(linear_depth - u_fog_start, 0.0);
-    float distance_fog = 1.0 - exp(-fog_distance * u_fog_density);
+    float fog_distance = max(linear_depth - FOG_START, 0.0);
+    float distance_fog = 1.0 - exp(-fog_distance * FOG_DENSITY);
 
-    float horizon_distance = abs(uv.y - u_horizon_height);
-    float horizon_fog = exp(-horizon_distance / max(u_horizon_falloff, 0.0001));
-    float height_attenuation = mix(1.0 - u_horizon_strength, 1.0, horizon_fog);
+    float horizon_distance = abs(uv.y - FOG_HORIZON_HEIGHT);
+    float horizon_fog = exp(-horizon_distance / max(FOG_HORIZON_FALLOFF, 0.0001));
+    float height_attenuation = mix(1.0 - FOG_HORIZON_STRENGTH, 1.0, horizon_fog);
 
     float fog_factor = clamp(distance_fog * height_attenuation, 0.0, 1.0);
-    return mix(scene_colour, u_fog_colour, fog_factor);
+    return mix(scene_colour, FOG_COLOUR, fog_factor);
+}
+
+vec3 apply_vignette(vec3 scene_colour, vec2 uv) {
+    vec2 centered_uv = uv - 0.5;
+    float distance_from_center = length(centered_uv) * 1.41421356;
+    float vignette = smoothstep(VIGNETTE_RADIUS - VIGNETTE_SOFTNESS, VIGNETTE_RADIUS, distance_from_center);
+    float vignette_mix = vignette * VIGNETTE_STRENGTH;
+    return scene_colour * (1.0 - vignette_mix);
 }
 
 vec3 gamma_correct(vec3 colour) {
@@ -66,6 +77,7 @@ void main() {
     float depth = texture(u_depth_texture, v_uv).r;
     float linear_depth = depth_to_linear(depth);
     vec3 fogged_colour = apply_fog(scene_colour.rgb, linear_depth, v_uv);
-    vec3 gamma_corrected = gamma_correct(fogged_colour);
+    vec3 vignette_colour = apply_vignette(fogged_colour, v_uv);
+    vec3 gamma_corrected = gamma_correct(vignette_colour);
     frag_colour = vec4(gamma_corrected, scene_colour.a);
 }
