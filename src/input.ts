@@ -142,7 +142,7 @@ export function input_init(canvas: HTMLCanvasElement) {
     canvas.addEventListener("mousedown", event_handler_mouse_down);
     canvas.addEventListener("mouseup", event_handler_mouse_up);
     canvas.addEventListener("contextmenu", e => e.preventDefault());
-    canvas.addEventListener("click", () => canvas.requestPointerLock());
+    // canvas.addEventListener("click", () => canvas.requestPointerLock());
 
     keyboard = {
         keys: Array(Object.keys(Key).length).fill(InputState.Up),

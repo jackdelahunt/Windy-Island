@@ -63,7 +63,7 @@ const float NOISE_SCALE = 0.02;
 const float MIN_NOISE_COLOUR_EFFECT = 0.5;
 const float MIN_HEIGHT_COLOUR_EFFECT = 0.3;
 
-const vec3 DEFAULT_BASE_COLOUR = vec3(0.08, 0.3, 0.08);
+const vec3 DEFAULT_BASE_COLOUR = vec3(0.05, 0.25, 0.05);
 const vec3 DEFAULT_TIP_COLOUR = vec3(0.3, 0.7, 0.2);
 const vec3 DEFAULT_WIND_COLOUR = vec3(0.55, 0.85, 0.45);
 

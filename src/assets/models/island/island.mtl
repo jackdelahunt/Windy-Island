@@ -1,7 +1,7 @@
 # Blender 5.1.0 MTL File: 'island.blend'
 # www.blender.org
 
-newmtl mat_stone
+newmtl mat_water
 Ns 360.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800000 0.800000 0.800000

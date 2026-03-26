@@ -21,16 +21,10 @@ import GRASS_TEXTURE_SOURCE from "./assets/textures/grass/grass.png";
 import WIND_TEXTURE_SOURCE from "./assets/textures/wind/wind.png";
 import WATER_TEXTURE_SOURCE from "./assets/textures/water/water.png";
 import EDGE_TEXTURE_SOURCE from "./assets/textures/water/edge.png";
-import STONE_TEXTURE_SOURCE from "./assets/textures/stone/stone.png";
 
 import ISLAND_AO_TEXTURE_SOURCE from "./assets/models/island/ao.png";
 
-import SKYBOX_BACK_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
-import SKYBOX_BOTTOM_TEXTURE_SOURCE from "./assets/textures/skybox/160.png";
-import SKYBOX_FRONT_TEXTURE_SOURCE  from "./assets/textures/skybox/160.png";
-import SKYBOX_LEFT_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
-import SKYBOX_RIGHT_TEXTURE_SOURCE  from "./assets/textures/skybox/160.png";
-import SKYBOX_TOP_TEXTURE_SOURCE    from "./assets/textures/skybox/160.png";
+import SKYBOX_TEXTURE_SOURCE   from "./assets/textures/skybox/160.png";
 
 function hex_to_colour(hex: string): vec4 {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -93,7 +87,6 @@ type WaterShaderInputs = {
 
 type IslandShaderInputs = {
     type: "island";
-    stone_texture: WebGLTexture;
     sun_direction: vec3;
 };
 
@@ -212,7 +205,6 @@ type Renderer = {
     water_texture: WebGLTexture;
     edge_texture: WebGLTexture;
     skybox_texture: WebGLTexture;
-    stone_texture: WebGLTexture;
     island_ao_texture: WebGLTexture;
 
     instances: MeshInstance[];
@@ -241,7 +233,7 @@ function browser_init() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    gl = canvas.getContext("webgl2", { antialias: false })! as WebGL2RenderingContext;
+    gl = canvas.getContext("webgl2", { antialias: true })! as WebGL2RenderingContext;
 
     input_init(canvas);
 }
@@ -273,14 +265,13 @@ function renderer_init() {
         water_texture: load_texture(WATER_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         edge_texture: load_texture(EDGE_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.LINEAR),
         skybox_texture: load_cubemap([
-            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, image_source: SKYBOX_RIGHT_TEXTURE_SOURCE },
-            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, image_source: SKYBOX_LEFT_TEXTURE_SOURCE },
-            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, image_source: SKYBOX_TOP_TEXTURE_SOURCE },
-            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, image_source: SKYBOX_BOTTOM_TEXTURE_SOURCE },
-            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, image_source: SKYBOX_FRONT_TEXTURE_SOURCE },
-            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, image_source: SKYBOX_BACK_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, image_source: SKYBOX_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, image_source: SKYBOX_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, image_source: SKYBOX_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, image_source: SKYBOX_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, image_source: SKYBOX_TEXTURE_SOURCE },
+            { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, image_source: SKYBOX_TEXTURE_SOURCE },
         ]),
-        stone_texture: load_texture(STONE_TEXTURE_SOURCE, gl.REPEAT, gl.LINEAR),
         island_ao_texture: load_texture(ISLAND_AO_TEXTURE_SOURCE, gl.CLAMP_TO_EDGE, gl.LINEAR),
         instances: [],
         sun_direction: vec3.fromValues(0, -1, 0),
@@ -548,12 +539,8 @@ function renderer_main_pass(view_matrix: mat4, projection_matrix: mat4) {
             gl.uniform3fv(gl.getUniformLocation(renderer.island_shader, "u_sun_direction")!, shader_inputs.sun_direction);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, renderer.stone_texture);
-            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_stone_texture")!, 0);
-
-            gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, renderer.island_ao_texture);
-            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_ao_texture")!, 1);
+            gl.uniform1i(gl.getUniformLocation(renderer.island_shader, "u_ao_texture")!, 0);
 
             gl.bindVertexArray(instance.mesh.vao);
             gl.drawElements(gl.TRIANGLES, instance.mesh.index_count, gl.UNSIGNED_SHORT, 0);
@@ -715,7 +702,7 @@ function main() {
     });
 
     const surfaceStart = performance.now();
-    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.5, 0.1, 50);
+    island_surface_points = sampleIslandSurface(renderer.island_mesh, 80, 0.4, 0.2, 21);
     const surfaceEnd = performance.now();
     console.log(`Surface sampling: ${island_surface_points.length} points in ${(surfaceEnd - surfaceStart).toFixed(2)}ms`);
 
@@ -728,7 +715,6 @@ if (true) {
         back_face_culling: true,
         shader_inputs: {
             type: "island",
-            stone_texture: renderer.stone_texture,
             sun_direction: renderer.sun_direction,
         },
     };

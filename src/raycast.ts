@@ -82,7 +82,7 @@ type SpatialGrid = {
 };
 
 const BEACH_LINE = 1.4;
-const MIN_FLATNESS = 0.8;
+const MIN_FLATNESS = 0.83;
 
 function buildSpatialGrid(mesh: Mesh, cellSize: number): SpatialGrid {
     const vertices = mesh.vertices!;
